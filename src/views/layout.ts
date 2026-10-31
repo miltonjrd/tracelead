@@ -1,0 +1,41 @@
+import { html, type SafeHtml } from '../lib/html.js';
+import { assetUrl } from '../routes/static.js';
+import type { SessionUser } from '../services/auth.js';
+
+export function page(opts: { title: string; body: SafeHtml; user?: SessionUser | null; nav?: SafeHtml }): string {
+  const { title, body, user, nav } = opts;
+  return `<!doctype html>${html`<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
+<meta name="theme-color" content="#15803d">
+<title>${title} · Tracker</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="${assetUrl('icon.svg')}" type="image/svg+xml">
+<link rel="stylesheet" href="${assetUrl('app.css')}">
+<script src="${assetUrl('htmx.min.js')}" defer></script>
+<script src="${assetUrl('app.js')}" defer></script>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <a class="brand" href="/">Tracker</a>
+    ${user
+      ? html`<form method="post" action="/logout" class="logout">
+          <span class="muted">${user.username}</span>
+          <button class="btn-link" type="submit">Sair</button>
+        </form>`
+      : ''}
+  </div>
+  ${nav ?? ''}
+</header>
+<main class="container">${body}</main>
+</body>
+</html>`}`;
+}
+
+export function flash(kind: 'ok' | 'erro', message: string | null | undefined): SafeHtml | '' {
+  if (!message) return '';
+  return html`<p class="flash flash-${kind}" role="${kind === 'erro' ? 'alert' : 'status'}">${message}</p>`;
+}

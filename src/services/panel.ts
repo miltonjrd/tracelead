@@ -1,0 +1,128 @@
+import { and, desc, eq, gte, inArray, ne } from 'drizzle-orm';
+import type { Db } from '../db/client.js';
+import { contacts, ORIGENS, sales, type Client, type Contact, type Origem, type Sale } from '../db/schema.js';
+import { DAY_MS, fromLocal, localDate } from '../lib/time.js';
+
+export class PanelError extends Error {}
+
+export interface PanelRow {
+  contact: Contact;
+  lastSale: Sale | null;
+}
+
+// Open contacts stay on the client's list this long, so a missed day can still be marked.
+const OPEN_WINDOW_MS = 7 * DAY_MS;
+
+async function withLastSales(db: Db, rows: Contact[]): Promise<PanelRow[]> {
+  if (!rows.length) return [];
+  const all = await db
+    .select()
+    .from(sales)
+    .where(inArray(sales.contactId, rows.map((r) => r.id)))
+    .orderBy(desc(sales.soldAt));
+  const last = new Map<number, Sale>();
+  for (const s of all) if (!last.has(s.contactId)) last.set(s.contactId, s);
+  return rows.map((contact) => ({ contact, lastSale: last.get(contact.id) ?? null }));
+}
+
+export async function listPanel(db: Db, client: Client, now = Date.now()) {
+  const startOfToday = fromLocal(localDate(now, client.timezone), client.timezone);
+  const pendentes = await db
+    .select()
+    .from(contacts)
+    .where(
+      and(
+        eq(contacts.clientId, client.id),
+        eq(contacts.status, 'aberto'),
+        gte(contacts.lastMessageAt, now - OPEN_WINDOW_MS),
+      ),
+    )
+    .orderBy(desc(contacts.lastMessageAt));
+  const resolvidos = await db
+    .select()
+    .from(contacts)
+    .where(
+      and(eq(contacts.clientId, client.id), ne(contacts.status, 'aberto'), gte(contacts.statusAt, startOfToday)),
+    )
+    .orderBy(desc(contacts.statusAt));
+  return {
+    pendentes: await withLastSales(db, pendentes),
+    resolvidos: await withLastSales(db, resolvidos),
+  };
+}
+
+export async function getPanelRow(db: Db, clientId: number, contactId: number): Promise<PanelRow | null> {
+  const contact = await db.query.contacts.findFirst({
+    where: and(eq(contacts.id, contactId), eq(contacts.clientId, clientId)),
+  });
+  if (!contact) return null;
+  return (await withLastSales(db, [contact]))[0]!;
+}
+
+async function requireContact(db: Db, clientId: number, contactId: number): Promise<Contact> {
+  const contact = await db.query.contacts.findFirst({
+    where: and(eq(contacts.id, contactId), eq(contacts.clientId, clientId)),
+  });
+  if (!contact) throw new PanelError('Contato não encontrado');
+  return contact;
+}
+
+export async function markSold(
+  db: Db,
+  clientId: number,
+  contactId: number,
+  valorCentavos: number,
+  userId: number,
+  now = Date.now(),
+): Promise<void> {
+  await requireContact(db, clientId, contactId);
+  db.transaction((tx) => {
+    tx.insert(sales)
+      .values({ clientId, contactId, valorCentavos, soldAt: now, marcadoPor: userId, createdAt: now, updatedAt: now })
+      .run();
+    tx.update(contacts).set({ status: 'vendeu', statusAt: now }).where(eq(contacts.id, contactId)).run();
+  });
+}
+
+export async function markNotBought(db: Db, clientId: number, contactId: number, now = Date.now()): Promise<void> {
+  await requireContact(db, clientId, contactId);
+  await db.update(contacts).set({ status: 'nao_comprou', statusAt: now }).where(eq(contacts.id, contactId));
+}
+
+/** Undoes today's "vendeu" / "não comprou". A sale already sent to Google Ads can only be fixed by the admin. */
+export async function reopen(db: Db, clientId: number, contactId: number, now = Date.now()): Promise<void> {
+  const contact = await requireContact(db, clientId, contactId);
+  if (contact.status === 'aberto') return;
+  if (contact.status === 'vendeu') {
+    const [sale] = await db
+      .select()
+      .from(sales)
+      .where(eq(sales.contactId, contactId))
+      .orderBy(desc(sales.soldAt))
+      .limit(1);
+    if (sale?.exportadaEm) throw new PanelError('Essa venda já foi enviada ao Google Ads. Peça a correção ao gestor.');
+    db.transaction((tx) => {
+      if (sale) tx.delete(sales).where(eq(sales.id, sale.id)).run();
+      tx.update(contacts).set({ status: 'aberto', statusAt: now }).where(eq(contacts.id, contactId)).run();
+    });
+    return;
+  }
+  await db.update(contacts).set({ status: 'aberto', statusAt: now }).where(eq(contacts.id, contactId));
+}
+
+export function isOrigem(v: unknown): v is Origem {
+  return typeof v === 'string' && (ORIGENS as readonly string[]).includes(v);
+}
+
+/** The client may only reclassify contacts without a tracked click; the admin may override any. */
+export async function setOrigem(
+  db: Db,
+  clientId: number,
+  contactId: number,
+  origem: Origem,
+  opts: { overrideTracked: boolean },
+): Promise<void> {
+  const contact = await requireContact(db, clientId, contactId);
+  if (contact.clickId && !opts.overrideTracked) throw new PanelError('A origem desse contato veio do rastreio.');
+  await db.update(contacts).set({ origem }).where(eq(contacts.id, contactId));
+}
