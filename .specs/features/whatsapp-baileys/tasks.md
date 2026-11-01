@@ -209,9 +209,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Tests for C20, C21 pass
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 43 tests pass
+- [x] Tests for C20, C21 pass
+- [x] Gate check passes: `npm test`
+- [x] Test count: 43 tests pass
 
 **Tests**: integration
 **Gate**: full

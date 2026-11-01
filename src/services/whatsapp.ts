@@ -57,6 +57,8 @@ export async function processWebhook(db: Db, payload: unknown, now = Date.now())
       const phoneNumberId = value.metadata?.phone_number_id;
       if (!phoneNumberId) continue;
       const client = await db.query.clients.findFirst({ where: eq(clients.whatsappPhoneNumberId, phoneNumberId) });
+      // A client on Baileys gets its messages from its own session, never from this webhook.
+      if (client && client.whatsappMode !== 'cloud') continue;
       if (!client) {
         result.unknownPhoneNumberIds.push(phoneNumberId);
         continue;
