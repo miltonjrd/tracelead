@@ -15,6 +15,13 @@
       "when": 1793493544844,
       "tag": "0001_whatsapp_baileys",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793496819754,
+      "tag": "0002_export_braid",
+      "breakpoints": true
     }
   ]
 }
