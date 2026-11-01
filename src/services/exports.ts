@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { clicks, contacts, exports, sales, type Client } from '../db/schema.js';
 import { toCsv } from '../lib/csv.js';
@@ -9,9 +9,14 @@ export type ExportTipo = 'lead' | 'venda';
 // Google Ads rejects offline conversions for clicks older than 90 days.
 const CLICK_MAX_AGE_MS = 90 * DAY_MS;
 
-interface Candidate {
+interface ClickIds {
+  gclid: string | null;
+  gbraid: string | null;
+  wbraid: string | null;
+}
+
+interface Candidate extends ClickIds {
   referenciaId: number;
-  gclid: string;
   clickAt: number;
   conversaoEm: number;
   valorCentavos: number | null;
@@ -19,21 +24,32 @@ interface Candidate {
 
 type Reader = Pick<Db, 'select'>;
 
+const hasClickId = or(isNotNull(clicks.gclid), isNotNull(clicks.gbraid), isNotNull(clicks.wbraid));
+
+/** One identifier per conversion, the most specific the click has: gclid, then gbraid, then wbraid. */
+function pickClickId(c: ClickIds): ClickIds {
+  if (c.gclid) return { gclid: c.gclid, gbraid: null, wbraid: null };
+  if (c.gbraid) return { gclid: null, gbraid: c.gbraid, wbraid: null };
+  return { gclid: null, gbraid: null, wbraid: c.wbraid };
+}
+
 function leadCandidates(db: Reader, clientId: number): Candidate[] {
   return db
     .select({
       referenciaId: contacts.id,
       gclid: clicks.gclid,
+      gbraid: clicks.gbraid,
+      wbraid: clicks.wbraid,
       clickAt: clicks.createdAt,
       firstMessageAt: contacts.firstMessageAt,
     })
     .from(contacts)
     .innerJoin(clicks, eq(clicks.id, contacts.clickId))
-    .where(and(eq(contacts.clientId, clientId), isNull(contacts.exportadaEm), isNotNull(clicks.gclid)))
+    .where(and(eq(contacts.clientId, clientId), isNull(contacts.exportadaEm), hasClickId))
     .all()
     .map((r) => ({
       referenciaId: r.referenciaId,
-      gclid: r.gclid!,
+      ...pickClickId(r),
       clickAt: r.clickAt,
       // Google rejects a conversion timed before its click.
       conversaoEm: Math.max(r.firstMessageAt, r.clickAt + 1000),
@@ -46,6 +62,8 @@ function saleCandidates(db: Reader, clientId: number): Candidate[] {
     .select({
       referenciaId: sales.id,
       gclid: clicks.gclid,
+      gbraid: clicks.gbraid,
+      wbraid: clicks.wbraid,
       clickAt: clicks.createdAt,
       soldAt: sales.soldAt,
       valorCentavos: sales.valorCentavos,
@@ -53,11 +71,11 @@ function saleCandidates(db: Reader, clientId: number): Candidate[] {
     .from(sales)
     .innerJoin(contacts, eq(contacts.id, sales.contactId))
     .innerJoin(clicks, eq(clicks.id, contacts.clickId))
-    .where(and(eq(sales.clientId, clientId), isNull(sales.exportadaEm), isNotNull(clicks.gclid)))
+    .where(and(eq(sales.clientId, clientId), isNull(sales.exportadaEm), hasClickId))
     .all()
     .map((r) => ({
       referenciaId: r.referenciaId,
-      gclid: r.gclid!,
+      ...pickClickId(r),
       clickAt: r.clickAt,
       conversaoEm: Math.max(r.soldAt, r.clickAt + 1000),
       valorCentavos: r.valorCentavos,
@@ -115,6 +133,8 @@ export function createExportFile(
           referenciaId: r.referenciaId,
           arquivo,
           gclid: r.gclid,
+          gbraid: r.gbraid,
+          wbraid: r.wbraid,
           conversaoEm: r.conversaoEm,
           valorCentavos: r.valorCentavos,
           exportadoEm: now,

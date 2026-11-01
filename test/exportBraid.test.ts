@@ -2,6 +2,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import Database from 'better-sqlite3';
+import { openDb, type Db } from '../src/db/client.js';
+import { clicks, contacts, exports, sales, type Client } from '../src/db/schema.js';
+import { createClient } from '../src/services/accounts.js';
+import { createExportFile } from '../src/services/exports.js';
+import { DAY_MS } from '../src/lib/time.js';
 
 function migrationSql(name: string): string[] {
   return readFileSync(new URL(`../drizzle/${name}.sql`, import.meta.url), 'utf8')
@@ -44,4 +49,147 @@ test('exportação só com gbraid é aceita depois da migração', () => {
   );
   const row = sqlite.prepare('select gclid, gbraid, wbraid from exports').get();
   assert.deepEqual(row, { gclid: null, gbraid: 'GBRAID-1', wbraid: null });
+});
+
+const NOW = Date.UTC(2026, 9, 31, 15, 0, 0);
+let seq = 0;
+
+interface Ids {
+  gclid?: string;
+  gbraid?: string;
+  wbraid?: string;
+}
+
+/** A contact (and, for "venda", its sale) whose click happened `ageDays` before NOW. */
+async function seed(db: Db, client: Client, ids: Ids, opts: { ageDays?: number; sale?: boolean } = {}) {
+  const n = ++seq;
+  const clickAt = NOW - (opts.ageDays ?? 1) * DAY_MS;
+  const [click] = await db
+    .insert(clicks)
+    .values({
+      clientId: client.id,
+      ref: `REF${n}`.padEnd(5, '2').slice(0, 5),
+      gclid: ids.gclid ?? null,
+      gbraid: ids.gbraid ?? null,
+      wbraid: ids.wbraid ?? null,
+      utmMedium: 'cpc',
+      createdAt: clickAt,
+    })
+    .returning();
+  const [contact] = await db
+    .insert(contacts)
+    .values({
+      clientId: client.id,
+      phone: `+55119000000${String(n).padStart(2, '0')}`,
+      firstMessageAt: clickAt + 60_000,
+      lastMessageAt: clickAt + 60_000,
+      origem: 'anuncio',
+      clickId: click!.id,
+      status: opts.sale ? 'vendeu' : 'aberto',
+      statusAt: clickAt + 60_000,
+    })
+    .returning();
+  if (!opts.sale) return { contact: contact! };
+  const [sale] = await db
+    .insert(sales)
+    .values({
+      clientId: client.id,
+      contactId: contact!.id,
+      valorCentavos: 10000 + n,
+      soldAt: clickAt + 120_000,
+      createdAt: clickAt + 120_000,
+      updatedAt: clickAt + 120_000,
+    })
+    .returning();
+  return { contact: contact!, sale: sale! };
+}
+
+async function fresh() {
+  const db = openDb(':memory:');
+  const client = await createClient(db, { name: 'Loja' }, NOW);
+  return { db, client };
+}
+
+async function exported(db: Db) {
+  return db.select().from(exports).orderBy(exports.id);
+}
+
+test('arquivo inclui itens com gclid, gbraid ou wbraid', async () => {
+  const { db, client } = await fresh();
+  const a = await seed(db, client, { gclid: 'G-A' }, { sale: true });
+  const b = await seed(db, client, { gbraid: 'GB-B' }, { sale: true });
+  const c = await seed(db, client, { wbraid: 'WB-C' }, { sale: true });
+
+  const lead = createExportFile(db, client, 'lead', NOW);
+  assert.equal(lead?.linhas, 3);
+  const venda = createExportFile(db, client, 'venda', NOW);
+  assert.equal(venda?.linhas, 3);
+
+  const rows = await exported(db);
+  const byTipo = (tipo: string) => rows.filter((r) => r.tipo === tipo).map((r) => [r.referenciaId, r.gclid, r.gbraid, r.wbraid]);
+  assert.deepEqual(byTipo('lead'), [
+    [a.contact.id, 'G-A', null, null],
+    [b.contact.id, null, 'GB-B', null],
+    [c.contact.id, null, null, 'WB-C'],
+  ]);
+  assert.deepEqual(byTipo('venda'), [
+    [a.sale!.id, 'G-A', null, null],
+    [b.sale!.id, null, 'GB-B', null],
+    [c.sale!.id, null, null, 'WB-C'],
+  ]);
+});
+
+test('exportação grava só o gclid quando o clique tem os três', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { gclid: 'G-1', gbraid: 'GB-1', wbraid: 'WB-1' });
+  createExportFile(db, client, 'lead', NOW);
+  const [row] = await exported(db);
+  assert.deepEqual([row!.gclid, row!.gbraid, row!.wbraid], ['G-1', null, null]);
+});
+
+test('exportação grava só o gbraid quando não há gclid', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { gbraid: 'GB-1', wbraid: 'WB-1' });
+  createExportFile(db, client, 'lead', NOW);
+  const [row] = await exported(db);
+  assert.deepEqual([row!.gclid, row!.gbraid, row!.wbraid], [null, 'GB-1', null]);
+});
+
+test('exportação grava o wbraid quando é o único identificador', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { wbraid: 'WB-1' });
+  createExportFile(db, client, 'lead', NOW);
+  const [row] = await exported(db);
+  assert.deepEqual([row!.gclid, row!.gbraid, row!.wbraid], [null, null, 'WB-1']);
+});
+
+test('gbraid de clique com mais de 90 dias fica fora do arquivo', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { gbraid: 'GB-VELHO' }, { ageDays: 91 });
+  const fresco = await seed(db, client, { gbraid: 'GB-NOVO' }, { ageDays: 89 });
+  const file = createExportFile(db, client, 'lead', NOW);
+  assert.equal(file?.linhas, 1);
+  const rows = await exported(db);
+  assert.deepEqual(rows.map((r) => [r.referenciaId, r.gbraid]), [[fresco.contact.id, 'GB-NOVO']]);
+});
+
+test('item sem identificador continua pendente', async () => {
+  const { db, client } = await fresh();
+  const semId = await seed(db, client, {}, { sale: true });
+  assert.equal(createExportFile(db, client, 'lead', NOW), null);
+  assert.equal(createExportFile(db, client, 'venda', NOW), null);
+  assert.equal((await exported(db)).length, 0);
+  const [contact] = await db.select().from(contacts);
+  const [sale] = await db.select().from(sales);
+  assert.equal(contact!.exportadaEm, null);
+  assert.equal(sale!.exportadaEm, null);
+  assert.equal(semId.sale!.id, sale!.id);
+});
+
+test('segundo gerar arquivo não repete itens', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { gbraid: 'GB-1' }, { sale: true });
+  assert.equal(createExportFile(db, client, 'venda', NOW)?.linhas, 1);
+  assert.equal(createExportFile(db, client, 'venda', NOW + 1000), null);
+  assert.equal((await exported(db)).length, 1);
 });

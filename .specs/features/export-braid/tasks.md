@@ -89,13 +89,13 @@ T1 → T2 → T3 → T4 → T5
 
 **Done when**:
 
-- [ ] Lead e venda com clique `gclid`, `gbraid` ou `wbraid` dentro de 90 dias entram no arquivo
-- [ ] Clique com os três identificadores grava só o `gclid`; com `gbraid` e `wbraid`, só o `gbraid`; só com `wbraid`, o `wbraid`
-- [ ] Clique de mais de 90 dias com `gbraid` fica fora do arquivo
-- [ ] Item cujo clique não tem nenhum identificador continua pendente, sem erro
-- [ ] Segundo `createExportFile` não repete os itens do primeiro
-- [ ] Gate check passes: `npx tsx --test test/exportBraid.test.ts`
-- [ ] Test count: 9 tests pass (no silent deletions)
+- [x] Lead e venda com clique `gclid`, `gbraid` ou `wbraid` dentro de 90 dias entram no arquivo
+- [x] Clique com os três identificadores grava só o `gclid`; com `gbraid` e `wbraid`, só o `gbraid`; só com `wbraid`, o `wbraid`
+- [x] Clique de mais de 90 dias com `gbraid` fica fora do arquivo
+- [x] Item cujo clique não tem nenhum identificador continua pendente, sem erro
+- [x] Segundo `createExportFile` não repete os itens do primeiro
+- [x] Gate check passes: `npx tsx --test test/exportBraid.test.ts`
+- [x] Test count: 9 tests pass (no silent deletions)
 
 **Tests**: unit
 **Gate**: quick
@@ -119,7 +119,7 @@ T1 → T2 → T3 → T4 → T5
 - [ ] Contato de anúncio sem nenhum identificador mostra "N contato(s) de anúncio chegaram sem identificador de clique (gclid, gbraid ou wbraid). Eles aparecem no relatório, mas não entram no arquivo."
 - [ ] Quando todos os contatos de anúncio têm identificador, o aviso não aparece
 - [ ] Gate check passes: `npm test`
-- [ ] Test count: 13 tests pass (no silent deletions)
+- [ ] Test count: 13 tests pass in `test/exportBraid.test.ts` (no silent deletions)
 
 **Tests**: integration
 **Gate**: full
@@ -139,11 +139,12 @@ T1 → T2 → T3 → T4 → T5
 **Done when**:
 
 - [ ] A linha 2 do CSV é `Google Click ID,GBRAID,WBRAID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency`
+- [ ] Clique com os três identificadores sai só em `Google Click ID`; com `gbraid` e `wbraid`, só em `GBRAID`; só com `wbraid`, só em `WBRAID`
 - [ ] Linhas de tipos diferentes no mesmo arquivo caem cada uma na sua coluna
 - [ ] Um arquivo gerado antes da mudança baixa no layout novo, com `GBRAID` e `WBRAID` vazios
 - [ ] `test/flow.test.ts` espera o novo cabeçalho e as linhas com as colunas vazias
 - [ ] Gate check passes: `npm test`
-- [ ] Test count: 16 tests pass (no silent deletions)
+- [ ] Test count: 19 tests pass in `test/exportBraid.test.ts` (no silent deletions)
 
 **Tests**: integration
 **Gate**: full
@@ -164,7 +165,7 @@ T1 → T2 → T3 → T4 → T5
 
 - [ ] A página mostra "Conversões com gbraid ou wbraid exigem que a ação de conversão no Google Ads esteja com a contagem em “Todas”."
 - [ ] Gate check passes: `npm run build; npm run typecheck; npm test`
-- [ ] Test count: 17 tests pass (no silent deletions)
+- [ ] Test count: 20 tests pass in `test/exportBraid.test.ts` (no silent deletions)
 
 **Tests**: integration
 **Gate**: build
@@ -179,13 +180,13 @@ T1 → T2 → T3 → T4 → T5
 Proof: run unit | ✔ arquivo inclui itens com gclid, gbraid ou wbraid
 
 **C2** - Clique com `gclid` e `gbraid` sai só na coluna `Google Click ID` (BRAID-01, AC 2)
-Proof: run unit | ✔ gclid vence quando o clique tem os três identificadores
+Proof: run unit | ✔ CSV põe o gclid só na coluna Google Click ID quando o clique tem os três
 
 **C3** - Clique com `gbraid` e `wbraid` sai só na coluna `GBRAID` (BRAID-01, AC 3)
-Proof: run unit | ✔ gbraid vence wbraid quando não há gclid
+Proof: run unit | ✔ CSV põe o gbraid só na coluna GBRAID quando não há gclid
 
 **C4** - Clique só com `wbraid` sai na coluna `WBRAID` (BRAID-01, AC 4)
-Proof: run unit | ✔ clique só com wbraid sai na coluna WBRAID
+Proof: run unit | ✔ CSV põe o wbraid só na coluna WBRAID quando é o único
 
 **C5** - O cabeçalho do CSV tem as 7 colunas na ordem `Google Click ID,GBRAID,WBRAID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency` (BRAID-02, AC 5)
 Proof: run unit | ✔ cabeçalho do CSV tem as sete colunas na ordem
@@ -221,6 +222,6 @@ Proof: run unit | ✔ tipos diferentes no mesmo arquivo caem cada um na sua colu
 
 ## Handoff
 
-**Settled mid-build:** none
+**Settled mid-build:** none (ajuste do agente, sem decisão do usuário: os testes de coluna C2-C4 passaram da T2 para a T4, porque a coluna só existe no CSV; as contagens de teste de T3-T5 passaram a ser o total de `test/exportBraid.test.ts`)
 **Dispatched:** none
 **Walked:** none

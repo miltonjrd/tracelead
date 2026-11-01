@@ -94,7 +94,7 @@ O CSV de conversões offline só inclui contatos e vendas cujo clique tem `gclid
 
 | Requirement ID | Story | Phase | Status |
 | -------------- | ----- | ----- | ------ |
-| BRAID-01 | P1: Exportar conversões (critérios 1-4, 7) | T1-T3 | Implementing |
+| BRAID-01 | P1: Exportar conversões (critérios 1-4, 7) | T1-T4 | Implementing |
 | BRAID-02 | P1: Exportar conversões (critérios 5, 8) | Specify | Pending |
 | BRAID-03 | P1: Exportar conversões (critério 6) | Specify | Pending |
 | BRAID-04 | P2: Painel (critérios 1-3) | Specify | Pending |
