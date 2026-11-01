@@ -181,7 +181,7 @@ export function salesPage(rows: { sale: Sale; contact: Contact }[], client: Clie
 }
 
 export function exportsPage(
-  stats: { lead: { prontos: number; foraDoPrazo: number }; venda: { prontos: number; foraDoPrazo: number }; anuncioSemGclid: number },
+  stats: { lead: { prontos: number; foraDoPrazo: number }; venda: { prontos: number; foraDoPrazo: number }; anuncioSemIdentificador: number },
   files: { arquivo: string; tipo: 'lead' | 'venda'; linhas: number; valorCentavos: number; exportadoEm: number; importado: number }[],
   client: Client,
   names: { lead: string; venda: string },
@@ -201,8 +201,8 @@ export function exportsPage(
   return html`<div class="page-head"><h1>Exportações para o Google Ads</h1></div>
     ${msg ?? ''}
     <div class="two-col">${box('lead', 'Leads')}${box('venda', 'Vendas')}</div>
-    ${stats.anuncioSemGclid
-      ? html`<p class="muted small">${stats.anuncioSemGclid} contato(s) de anúncio chegaram sem gclid (geralmente iPhone, só com gbraid/wbraid). Eles aparecem no relatório, mas não entram no arquivo.</p>`
+    ${stats.anuncioSemIdentificador
+      ? html`<p class="muted small">${stats.anuncioSemIdentificador} contato(s) de anúncio chegaram sem identificador de clique (gclid, gbraid ou wbraid). Eles aparecem no relatório, mas não entram no arquivo.</p>`
       : ''}
     <p class="muted small">Gere o arquivo, baixe e envie em Google Ads → Metas → Conversões → Uploads. Depois marque como importado.</p>
 

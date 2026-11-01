@@ -114,12 +114,12 @@ T1 → T2 → T3 → T4 → T5
 
 **Done when**:
 
-- [ ] Um contato só com `gbraid` conta em "prontos para enviar" na página de exportações
-- [ ] Um `gbraid` com clique de mais de 90 dias fica fora do arquivo e conta em "fora do prazo"
-- [ ] Contato de anúncio sem nenhum identificador mostra "N contato(s) de anúncio chegaram sem identificador de clique (gclid, gbraid ou wbraid). Eles aparecem no relatório, mas não entram no arquivo."
-- [ ] Quando todos os contatos de anúncio têm identificador, o aviso não aparece
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 13 tests pass in `test/exportBraid.test.ts` (no silent deletions)
+- [x] Um contato só com `gbraid` conta em "prontos para enviar" na página de exportações
+- [x] Um `gbraid` com clique de mais de 90 dias fica fora do arquivo e conta em "fora do prazo"
+- [x] Contato de anúncio sem nenhum identificador mostra "N contato(s) de anúncio chegaram sem identificador de clique (gclid, gbraid ou wbraid). Eles aparecem no relatório, mas não entram no arquivo."
+- [x] Quando todos os contatos de anúncio têm identificador, o aviso não aparece
+- [x] Gate check passes: `npm test`
+- [x] Test count: 13 tests pass in `test/exportBraid.test.ts` (no silent deletions)
 
 **Tests**: integration
 **Gate**: full

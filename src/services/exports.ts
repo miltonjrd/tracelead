@@ -92,16 +92,24 @@ export function exportStats(db: Db, clientId: number, now = Date.now()) {
     const prontos = all.filter((c) => now - c.clickAt <= CLICK_MAX_AGE_MS).length;
     return { prontos, foraDoPrazo: all.length - prontos };
   };
-  // Tracked contacts/sales whose click came without gclid (e.g. iPhone gbraid/wbraid only).
-  const [semGclid] = db
+  // Ad contacts whose click has no identifier Google accepts: they stay in the report, not in the file.
+  const [semIdentificador] = db
     .select({
       leads: sql<number>`count(distinct ${contacts.id})`,
     })
     .from(contacts)
     .innerJoin(clicks, eq(clicks.id, contacts.clickId))
-    .where(and(eq(contacts.clientId, clientId), isNull(clicks.gclid), eq(contacts.origem, 'anuncio')))
+    .where(
+      and(
+        eq(contacts.clientId, clientId),
+        isNull(clicks.gclid),
+        isNull(clicks.gbraid),
+        isNull(clicks.wbraid),
+        eq(contacts.origem, 'anuncio'),
+      ),
+    )
     .all();
-  return { lead: split('lead'), venda: split('venda'), anuncioSemGclid: semGclid?.leads ?? 0 };
+  return { lead: split('lead'), venda: split('venda'), anuncioSemIdentificador: semIdentificador?.leads ?? 0 };
 }
 
 export function createExportFile(

@@ -7,6 +7,7 @@ import { clicks, contacts, exports, sales, type Client } from '../src/db/schema.
 import { createClient } from '../src/services/accounts.js';
 import { createExportFile } from '../src/services/exports.js';
 import { DAY_MS } from '../src/lib/time.js';
+import { form, login, setup } from './helpers.js';
 
 function migrationSql(name: string): string[] {
   return readFileSync(new URL(`../drizzle/${name}.sql`, import.meta.url), 'utf8')
@@ -61,9 +62,9 @@ interface Ids {
 }
 
 /** A contact (and, for "venda", its sale) whose click happened `ageDays` before NOW. */
-async function seed(db: Db, client: Client, ids: Ids, opts: { ageDays?: number; sale?: boolean } = {}) {
+async function seed(db: Db, client: Client, ids: Ids, opts: { ageDays?: number; sale?: boolean; now?: number } = {}) {
   const n = ++seq;
-  const clickAt = NOW - (opts.ageDays ?? 1) * DAY_MS;
+  const clickAt = (opts.now ?? NOW) - (opts.ageDays ?? 1) * DAY_MS;
   const [click] = await db
     .insert(clicks)
     .values({
@@ -192,4 +193,58 @@ test('segundo gerar arquivo não repete itens', async () => {
   assert.equal(createExportFile(db, client, 'venda', NOW)?.linhas, 1);
   assert.equal(createExportFile(db, client, 'venda', NOW + 1000), null);
   assert.equal((await exported(db)).length, 1);
+});
+
+async function exportsPage(ctx: Awaited<ReturnType<typeof setup>>) {
+  const cookie = await login(ctx.app, 'admin', 'admin-pass-123');
+  const res = await ctx.app.inject({ method: 'GET', url: `/admin/c/${ctx.client.id}/exportacoes`, headers: { cookie } });
+  assert.equal(res.statusCode, 200);
+  return { cookie, body: res.body };
+}
+
+function tiles(body: string): number[] {
+  return [...body.matchAll(/<p class="tile-value">(\d+)<\/p>/g)].map((m) => Number(m[1]));
+}
+
+const NO_ID_NOTICE =
+  /1 contato\(s\) de anúncio chegaram sem identificador de clique \(gclid, gbraid ou wbraid\)\. Eles aparecem no relatório, mas não entram no arquivo\./;
+
+test('prontos conta gclid, gbraid e wbraid', async () => {
+  const ctx = await setup();
+  const now = Date.now();
+  await seed(ctx.db, ctx.client, { gclid: 'G-1' }, { now, sale: true });
+  await seed(ctx.db, ctx.client, { gbraid: 'GB-1' }, { now, sale: true });
+  await seed(ctx.db, ctx.client, { wbraid: 'WB-1' }, { now, sale: true });
+  assert.deepEqual(tiles((await exportsPage(ctx)).body), [3, 3], 'leads e vendas prontos');
+});
+
+test('gbraid antigo fica fora do arquivo e conta como fora do prazo', async () => {
+  const ctx = await setup();
+  const now = Date.now();
+  await seed(ctx.db, ctx.client, { gbraid: 'GB-VELHO' }, { now, ageDays: 91 });
+  const { cookie, body } = await exportsPage(ctx);
+  assert.deepEqual(tiles(body), [0, 0]);
+  assert.match(body, /1 com clique há mais de 90 dias \(o Ads recusa\)/);
+  const gerar = await ctx.app.inject({ method: 'POST', url: `/admin/c/${ctx.client.id}/exportacoes`, ...form(cookie, { tipo: 'lead' }) });
+  assert.match(gerar.headers.location as string, /ok=vazio/);
+  assert.equal((await exported(ctx.db)).length, 0);
+});
+
+test('aviso aparece para anúncio sem identificador', async () => {
+  const ctx = await setup();
+  const now = Date.now();
+  await seed(ctx.db, ctx.client, { gbraid: 'GB-1' }, { now });
+  await seed(ctx.db, ctx.client, {}, { now });
+  assert.match((await exportsPage(ctx)).body, NO_ID_NOTICE);
+});
+
+test('aviso some quando todo anúncio tem identificador', async () => {
+  const ctx = await setup();
+  const now = Date.now();
+  await seed(ctx.db, ctx.client, { gclid: 'G-1' }, { now });
+  await seed(ctx.db, ctx.client, { gbraid: 'GB-1' }, { now });
+  await seed(ctx.db, ctx.client, { wbraid: 'WB-1' }, { now });
+  const { body } = await exportsPage(ctx);
+  assert.doesNotMatch(body, /sem identificador de clique/);
+  assert.doesNotMatch(body, /sem gclid/);
 });
