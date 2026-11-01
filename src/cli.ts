@@ -9,8 +9,8 @@ import { createClient, createUser, generatePassword, setPassword, updateClient }
 const HELP = `Uso: npm run cli -- <comando> [opções]
 
   create-client  --name <nome> [--tz America/Sao_Paulo] [--ads-customer-id 123-456-7890]
-                 [--phone-number-id <id do número na Cloud API>]
-  update-client  --id <n> [--name] [--tz] [--ads-customer-id] [--phone-number-id]
+                 [--phone-number-id <id do número na Cloud API>] [--whatsapp-mode baileys|cloud]
+  update-client  --id <n> [--name] [--tz] [--ads-customer-id] [--phone-number-id] [--whatsapp-mode baileys|cloud]
   list-clients
   create-user    --username <u> --role admin|client [--client <id>] [--password <senha>]
   set-password   --username <u> [--password <senha>]
@@ -27,6 +27,7 @@ const { values: args } = parseArgs({
     tz: { type: 'string' },
     'ads-customer-id': { type: 'string' },
     'phone-number-id': { type: 'string' },
+    'whatsapp-mode': { type: 'string' },
     username: { type: 'string' },
     role: { type: 'string' },
     client: { type: 'string' },
@@ -98,6 +99,7 @@ async function main(): Promise<void> {
           timezone: args.tz,
           googleAdsCustomerId: args['ads-customer-id'],
           whatsappPhoneNumberId: args['phone-number-id'],
+          whatsappMode: args['whatsapp-mode'],
         });
         console.log(`Cliente ${c.id} criado: ${c.name}\n\nSnippet para o site:\n<script src="${config.baseUrl}/t.js" data-client="${c.publicKey}" async></script>`);
         break;
@@ -108,6 +110,7 @@ async function main(): Promise<void> {
           timezone: args.tz,
           googleAdsCustomerId: args['ads-customer-id'],
           whatsappPhoneNumberId: args['phone-number-id'],
+          whatsappMode: args['whatsapp-mode'],
         });
         console.log(`Cliente ${c.id} atualizado:`, c);
         break;

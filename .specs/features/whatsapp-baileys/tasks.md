@@ -251,9 +251,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Tests for C22, C23 pass (spawning the CLI on a temp `DATABASE_PATH`)
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 47 tests pass
+- [x] Tests for C22, C23 pass (spawning the CLI on a temp `DATABASE_PATH`)
+- [x] Gate check passes: `npm test`
+- [x] Test count: 47 tests pass
 
 **Tests**: integration
 **Gate**: full
