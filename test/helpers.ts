@@ -5,6 +5,8 @@ import { join } from 'node:path';
 import { buildApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { openDb } from '../src/db/client.js';
+import { eq } from 'drizzle-orm';
+import { clients } from '../src/db/schema.js';
 import { createClient, createUser } from '../src/services/accounts.js';
 import type { FetchLike } from '../src/jobs/googleAds.js';
 
@@ -20,14 +22,16 @@ export async function setup(opts: { fetchImpl?: FetchLike; env?: Record<string, 
   });
   const db = openDb(':memory:');
   const app = await buildApp({ config, db, fetchImpl: opts.fetchImpl });
-  const client = await createClient(db, {
+  const created = await createClient(db, {
     name: 'Loja Teste',
     whatsappPhoneNumberId: 'PNID-1',
     googleAdsCustomerId: '123-456-7890',
   });
+  // The existing flows exercise the Cloud API webhook, so this client uses that mode.
+  const [client] = await db.update(clients).set({ whatsappMode: 'cloud' }).where(eq(clients.id, created.id)).returning();
   await createUser(db, { username: 'admin', password: 'admin-pass-123', role: 'admin' });
-  await createUser(db, { username: 'loja', password: 'loja-pass-123', role: 'client', clientId: client.id });
-  return { config, db, app, client };
+  await createUser(db, { username: 'loja', password: 'loja-pass-123', role: 'client', clientId: client!.id });
+  return { config, db, app, client: client! };
 }
 
 type App = Awaited<ReturnType<typeof setup>>['app'];

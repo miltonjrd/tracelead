@@ -102,11 +102,11 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Test "migração põe em cloud quem já tem phone number id" passes
-- [ ] Test "cliente novo nasce em modo baileys" passes
-- [ ] `test/helpers.ts` `setup()` creates the test client with `whatsappMode: 'cloud'` and the existing webhook tests stay green
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 18 tests pass
+- [x] Test "migração põe em cloud quem já tem phone number id" passes
+- [x] Test "cliente novo nasce em modo baileys" passes
+- [x] `test/helpers.ts` `setup()` creates the test client with `whatsappMode: 'cloud'` and the existing webhook tests stay green
+- [x] Gate check passes: `npm test`
+- [x] Test count: 18 tests pass
 
 **Tests**: integration
 **Gate**: full

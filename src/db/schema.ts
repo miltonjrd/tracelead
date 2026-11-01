@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import { index, integer, primaryKey, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 // Portable to Postgres: explicit PKs, epoch-ms integers for timestamps, no SQLite-only types.
 
@@ -8,6 +8,7 @@ export const clients = sqliteTable('clients', {
   publicKey: text('public_key').notNull().unique(),
   googleAdsCustomerId: text('google_ads_customer_id'),
   whatsappPhoneNumberId: text('whatsapp_phone_number_id').unique(),
+  whatsappMode: text('whatsapp_mode', { enum: ['baileys', 'cloud'] }).notNull().default('baileys'),
   timezone: text('timezone').notNull().default('America/Sao_Paulo'),
   currency: text('currency').notNull().default('BRL'),
   createdAt: integer('created_at').notNull(),
@@ -170,6 +171,20 @@ export const jobRuns = sqliteTable(
     finishedAt: integer('finished_at'),
   },
   (t) => [index('job_runs_job_started_idx').on(t.job, t.startedAt)],
+);
+
+/** Baileys login state (creds + signal keys), one row per key, per client. */
+export const whatsappAuth = sqliteTable(
+  'whatsapp_auth',
+  {
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    value: text('value').notNull(),
+    updatedAt: integer('updated_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.clientId, t.key] })],
 );
 
 export type Client = typeof clients.$inferSelect;
