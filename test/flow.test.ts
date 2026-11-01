@@ -126,11 +126,11 @@ test('admin exporta lead e venda no formato do Google Ads', async () => {
   assert.equal(venda.headers['content-type'], 'text/csv; charset=utf-8');
   const lines = venda.body.trim().split('\r\n');
   assert.equal(lines[0], 'Parameters:TimeZone=America/Sao_Paulo');
-  assert.equal(lines[1], 'Google Click ID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency');
-  assert.match(lines[2]!, /^GCLID-1,Venda WhatsApp,\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},150\.00,BRL$/);
+  assert.equal(lines[1], 'Google Click ID,GBRAID,WBRAID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency');
+  assert.match(lines[2]!, /^GCLID-1,,,Venda WhatsApp,\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},150\.00,BRL$/);
 
   const lead = await ctx.app.inject({ method: 'GET', url: `/admin/c/${ctx.client.id}/exportacoes/${files.find((f) => f.startsWith('lead'))}`, headers: { cookie } });
-  assert.match(lead.body, /GCLID-1,Lead WhatsApp,[\d: -]+,,\r\n$/);
+  assert.match(lead.body, /GCLID-1,,,Lead WhatsApp,[\d: -]+,,\r\n$/);
 
   const undo = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/reabrir`, ...form(loja, {}, { 'hx-request': 'true' }) });
   assert.match(undo.body, /já foi enviada ao Google Ads/);

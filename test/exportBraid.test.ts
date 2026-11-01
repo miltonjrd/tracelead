@@ -5,7 +5,7 @@ import Database from 'better-sqlite3';
 import { openDb, type Db } from '../src/db/client.js';
 import { clicks, contacts, exports, sales, type Client } from '../src/db/schema.js';
 import { createClient } from '../src/services/accounts.js';
-import { createExportFile } from '../src/services/exports.js';
+import { createExportFile, exportFileCsv } from '../src/services/exports.js';
 import { DAY_MS } from '../src/lib/time.js';
 import { form, login, setup } from './helpers.js';
 
@@ -247,4 +247,76 @@ test('aviso some quando todo anúncio tem identificador', async () => {
   const { body } = await exportsPage(ctx);
   assert.doesNotMatch(body, /sem identificador de clique/);
   assert.doesNotMatch(body, /sem gclid/);
+});
+
+const NAMES = { lead: 'Lead WhatsApp', venda: 'Venda WhatsApp' };
+const HEADER = 'Google Click ID,GBRAID,WBRAID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency';
+// The click is 1 day before NOW and the first message 60 s later; America/Sao_Paulo is UTC-3.
+const LEAD_TIME = '2026-10-30 12:01:00';
+
+async function csvOf(db: Db, client: Client, tipo: 'lead' | 'venda'): Promise<string[]> {
+  const file = createExportFile(db, client, tipo, NOW);
+  assert.ok(file, 'arquivo gerado');
+  const csv = await exportFileCsv(db, client, file.arquivo, NAMES);
+  return csv!.trim().split('\r\n');
+}
+
+test('CSV põe o gclid só na coluna Google Click ID quando o clique tem os três', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { gclid: 'G-1', gbraid: 'GB-1', wbraid: 'WB-1' });
+  const lines = await csvOf(db, client, 'lead');
+  assert.equal(lines[2], `G-1,,,Lead WhatsApp,${LEAD_TIME},,`);
+});
+
+test('CSV põe o gbraid só na coluna GBRAID quando não há gclid', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { gbraid: 'GB-1', wbraid: 'WB-1' });
+  const lines = await csvOf(db, client, 'lead');
+  assert.equal(lines[2], `,GB-1,,Lead WhatsApp,${LEAD_TIME},,`);
+});
+
+test('CSV põe o wbraid só na coluna WBRAID quando é o único', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { wbraid: 'WB-1' });
+  const lines = await csvOf(db, client, 'lead');
+  assert.equal(lines[2], `,,WB-1,Lead WhatsApp,${LEAD_TIME},,`);
+});
+
+test('cabeçalho do CSV tem as sete colunas na ordem', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { gbraid: 'GB-1' }, { sale: true });
+  const lines = await csvOf(db, client, 'venda');
+  assert.equal(lines[0], 'Parameters:TimeZone=America/Sao_Paulo');
+  assert.equal(lines[1], HEADER);
+  assert.equal(lines.length, 3);
+});
+
+test('arquivo gerado antes da mudança baixa no layout novo', async () => {
+  const { db, client } = await fresh();
+  // A row as the old code wrote it: gclid only, no braid columns.
+  await db.insert(exports).values({
+    clientId: client.id,
+    tipo: 'venda',
+    referenciaId: 1,
+    arquivo: 'venda-antigo.csv',
+    gclid: 'GCLID-ANTIGO',
+    conversaoEm: Date.UTC(2026, 9, 1, 15, 0, 0),
+    valorCentavos: 15000,
+    exportadoEm: Date.UTC(2026, 9, 2, 15, 0, 0),
+  });
+  const csv = await exportFileCsv(db, client, 'venda-antigo.csv', NAMES);
+  assert.deepEqual(csv!.trim().split('\r\n').slice(1), [HEADER, 'GCLID-ANTIGO,,,Venda WhatsApp,2026-10-01 12:00:00,150.00,BRL']);
+});
+
+test('tipos diferentes no mesmo arquivo caem cada um na sua coluna', async () => {
+  const { db, client } = await fresh();
+  await seed(db, client, { gclid: 'G-1' }, { sale: true });
+  await seed(db, client, { gbraid: 'GB-2' }, { sale: true });
+  await seed(db, client, { wbraid: 'WB-3' }, { sale: true });
+  const lines = await csvOf(db, client, 'lead');
+  assert.deepEqual(lines.slice(2).sort(), [
+    `,,WB-3,Lead WhatsApp,${LEAD_TIME},,`,
+    `,GB-2,,Lead WhatsApp,${LEAD_TIME},,`,
+    `G-1,,,Lead WhatsApp,${LEAD_TIME},,`,
+  ].sort());
 });

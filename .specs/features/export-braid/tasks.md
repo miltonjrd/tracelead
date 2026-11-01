@@ -138,13 +138,13 @@ T1 → T2 → T3 → T4 → T5
 
 **Done when**:
 
-- [ ] A linha 2 do CSV é `Google Click ID,GBRAID,WBRAID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency`
-- [ ] Clique com os três identificadores sai só em `Google Click ID`; com `gbraid` e `wbraid`, só em `GBRAID`; só com `wbraid`, só em `WBRAID`
-- [ ] Linhas de tipos diferentes no mesmo arquivo caem cada uma na sua coluna
-- [ ] Um arquivo gerado antes da mudança baixa no layout novo, com `GBRAID` e `WBRAID` vazios
-- [ ] `test/flow.test.ts` espera o novo cabeçalho e as linhas com as colunas vazias
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 19 tests pass in `test/exportBraid.test.ts` (no silent deletions)
+- [x] A linha 2 do CSV é `Google Click ID,GBRAID,WBRAID,Conversion Name,Conversion Time,Conversion Value,Conversion Currency`
+- [x] Clique com os três identificadores sai só em `Google Click ID`; com `gbraid` e `wbraid`, só em `GBRAID`; só com `wbraid`, só em `WBRAID`
+- [x] Linhas de tipos diferentes no mesmo arquivo caem cada uma na sua coluna
+- [x] Um arquivo gerado antes da mudança baixa no layout novo, com `GBRAID` e `WBRAID` vazios
+- [x] `test/flow.test.ts` espera o novo cabeçalho e as linhas com as colunas vazias
+- [x] Gate check passes: `npm test`
+- [x] Test count: 19 tests pass in `test/exportBraid.test.ts` (no silent deletions)
 
 **Tests**: integration
 **Gate**: full

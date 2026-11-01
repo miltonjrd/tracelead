@@ -187,12 +187,14 @@ export async function exportFileCsv(
   if (!rows.length) return null;
   const lines: (string | number | null)[][] = [
     [`Parameters:TimeZone=${client.timezone}`],
-    ['Google Click ID', 'Conversion Name', 'Conversion Time', 'Conversion Value', 'Conversion Currency'],
+    ['Google Click ID', 'GBRAID', 'WBRAID', 'Conversion Name', 'Conversion Time', 'Conversion Value', 'Conversion Currency'],
   ];
   for (const r of rows) {
     const venda = r.tipo === 'venda';
     lines.push([
       r.gclid,
+      r.gbraid,
+      r.wbraid,
       venda ? names.venda : names.lead,
       localDateTime(r.conversaoEm, client.timezone),
       venda && r.valorCentavos !== null ? (r.valorCentavos / 100).toFixed(2) : '',
