@@ -1,6 +1,6 @@
 # whatsapp-baileys proofs
 
-**HEAD**: 797d0b0
+**HEAD**: 6b16442
 **Tree**: clean
 **Shell**: /bin/sh
 **Result**: 32 pass, 0 fail
@@ -45,13 +45,13 @@
 `Run unit` - exit 0
 
 ```
-✔ qr não escaneado em 2 minutos expira (19.25627ms)
-✔ duas conexões da mesma loja usam um socket (10.187546ms)
-✔ login salvo corrompido pede qr novo (11.888281ms)
-✔ mensagem recebida na sessão vira contato e reconcile fecha cliente que saiu do modo baileys (13.992216ms)
-✔ close 500 mantém o login e reconecta com espera (20.299215ms)
-✔ reinício acima do limite reabre só até o limite (46.100279ms)
-✔ tela de conexão mostra cada estado (1.647323ms)
+✔ qr não escaneado em 2 minutos expira (18.01097ms)
+✔ duas conexões da mesma loja usam um socket (10.062554ms)
+✔ login salvo corrompido pede qr novo (9.756033ms)
+✔ mensagem recebida na sessão vira contato e reconcile fecha cliente que saiu do modo baileys (12.845944ms)
+✔ close 500 mantém o login e reconecta com espera (16.437108ms)
+✔ reinício acima do limite reabre só até o limite (41.35479ms)
+✔ tela de conexão mostra cada estado (1.205837ms)
 ℹ tests 61
 ℹ suites 0
 ℹ pass 61
@@ -59,5 +59,5 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 7801.769668
+ℹ duration_ms 7480.057954
 ```
