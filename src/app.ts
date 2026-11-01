@@ -12,6 +12,7 @@ import { panelRoutes } from './routes/panel.js';
 import { staticRoutes } from './routes/static.js';
 import { trackingRoutes } from './routes/tracking.js';
 import type { SessionUser } from './services/auth.js';
+import type { WhatsAppSessions } from './services/whatsappSessions.js';
 import { page } from './views/layout.js';
 
 declare module 'fastify' {
@@ -34,11 +35,12 @@ const CSP = [
 export interface AppDeps {
   config: Config;
   db: Db;
+  sessions: WhatsAppSessions;
   logger?: FastifyServerOptions['logger'];
   fetchImpl?: FetchLike;
 }
 
-export async function buildApp({ config, db, logger = false, fetchImpl }: AppDeps) {
+export async function buildApp({ config, db, sessions, logger = false, fetchImpl }: AppDeps) {
   const app = Fastify({ logger, trustProxy: config.trustProxy, bodyLimit: 1024 * 1024 });
 
   await app.register(cookie);
@@ -70,7 +72,7 @@ export async function buildApp({ config, db, logger = false, fetchImpl }: AppDep
   await app.register(staticRoutes);
   await app.register(trackingRoutes, { db, config });
   await app.register(authRoutes, { db, config });
-  await app.register(panelRoutes, { db });
+  await app.register(panelRoutes, { db, sessions });
   await app.register(adminRoutes, { db, config, fetchImpl });
 
   return app;

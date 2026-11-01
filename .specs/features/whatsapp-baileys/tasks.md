@@ -314,9 +314,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Tests for C1, C2 (via routes), C4 (painel part), C5, C6, C7, C24 pass
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 55 tests pass
+- [x] Tests for C1, C2 (via routes), C4 (painel part), C5, C6, C7, C24 pass
+- [x] Gate check passes: `npm test`
+- [x] Test count: 55 tests pass
 
 **Tests**: integration
 **Gate**: full

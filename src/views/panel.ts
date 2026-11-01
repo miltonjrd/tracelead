@@ -86,6 +86,7 @@ export function panelPage(
     <div class="page-head">
       <h1>${client.name}</h1>
       <p class="muted">${formatDateBr(localDate(now, client.timezone))}</p>
+      <a class="btn-link" href="/painel/whatsapp">WhatsApp</a>
     </div>
     <h2 class="section-title">Para marcar <span class="count">${data.pendentes.length}</span></h2>
     ${data.pendentes.length

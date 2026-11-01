@@ -9,6 +9,8 @@ import { eq } from 'drizzle-orm';
 import { clients } from '../src/db/schema.js';
 import { createClient, createUser } from '../src/services/accounts.js';
 import type { FetchLike } from '../src/jobs/googleAds.js';
+import { WhatsAppSessions } from '../src/services/whatsappSessions.js';
+import { FakeTimers, fakeFactory, silentLog } from './fakeWhatsApp.js';
 
 export const APP_SECRET = 'test-app-secret';
 
@@ -21,7 +23,15 @@ export async function setup(opts: { fetchImpl?: FetchLike; env?: Record<string, 
     ...opts.env,
   });
   const db = openDb(':memory:');
-  const app = await buildApp({ config, db, fetchImpl: opts.fetchImpl });
+  const fake = fakeFactory();
+  const timers = new FakeTimers();
+  const sessions = new WhatsAppSessions(db, {
+    maxSessions: config.whatsapp.maxSessions,
+    socketFactory: fake.factory,
+    log: silentLog(),
+    schedule: timers.schedule,
+  });
+  const app = await buildApp({ config, db, sessions, fetchImpl: opts.fetchImpl });
   const created = await createClient(db, {
     name: 'Loja Teste',
     whatsappPhoneNumberId: 'PNID-1',
@@ -31,7 +41,7 @@ export async function setup(opts: { fetchImpl?: FetchLike; env?: Record<string, 
   const [client] = await db.update(clients).set({ whatsappMode: 'cloud' }).where(eq(clients.id, created.id)).returning();
   await createUser(db, { username: 'admin', password: 'admin-pass-123', role: 'admin' });
   await createUser(db, { username: 'loja', password: 'loja-pass-123', role: 'client', clientId: client!.id });
-  return { config, db, app, client: client! };
+  return { config, db, app, client: client!, sessions, fake, timers };
 }
 
 type App = Awaited<ReturnType<typeof setup>>['app'];
