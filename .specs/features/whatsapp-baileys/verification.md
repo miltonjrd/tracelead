@@ -35,7 +35,9 @@
 | C25 | `whatsappSessions.test.ts` `qr não escaneado em 2 minutos expira` | yes - 119 999 ms still waiting, 120 000 ms expired, socket ended, new QR after reconnect |
 | C26 | `whatsappSessions.test.ts` `duas conexões da mesma loja usam um socket` | yes |
 | C27 | `whatsappSessions.test.ts` `login salvo corrompido pede qr novo` | yes |
-
+| C28 | `whatsappSessions.test.ts` `close 500 mantém o login e reconecta com espera` | yes (author-judged: added after the Verifier's round, no second Verifier by design) - asserts `reconectando` attempt 1, the auth rows still there, a new socket after exactly 1000 ms with `registered` true |
+| C29 | `whatsappSessions.test.ts` `depois do scan o close 515 reabre com o login salvo` | yes (author-judged, as C28) - the second socket is created with `registered` true and the creds row is saved |
+| C30 | `whatsappSessions.test.ts` `reinício acima do limite reabre só até o limite` | yes (author-judged, as C28) - one socket, the other client `desconectado`, exactly one warn |
 ## Findings
 
 | Finding | Evidence | Fix | Closed |
