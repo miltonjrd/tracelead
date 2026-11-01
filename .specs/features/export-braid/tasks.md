@@ -9,7 +9,7 @@ Implement these tasks with the `tlc-spec-driven` skill: **activate it by name an
 ---
 
 **Design**: none - decisões de design abaixo, inline (mudança de uma tabela, um serviço e uma view)
-**Status**: In Progress
+**Status**: Done
 **Approved**: 2026-10-31 - user: "aprovo, pode começar pela T1"
 **Build**: `npm run build; npm run typecheck`
 **Run unit**: `npm test`
@@ -163,9 +163,9 @@ T1 → T2 → T3 → T4 → T5
 
 **Done when**:
 
-- [ ] A página mostra "Conversões com gbraid ou wbraid exigem que a ação de conversão no Google Ads esteja com a contagem em “Todas”."
-- [ ] Gate check passes: `npm run build; npm run typecheck; npm test`
-- [ ] Test count: 20 tests pass in `test/exportBraid.test.ts` (no silent deletions)
+- [x] A página mostra "Conversões com gbraid ou wbraid exigem que a ação de conversão no Google Ads esteja com a contagem em “Todas”."
+- [x] Gate check passes: `npm run build; npm run typecheck; npm test`
+- [x] Test count: 20 tests pass in `test/exportBraid.test.ts` (no silent deletions)
 
 **Tests**: integration
 **Gate**: build

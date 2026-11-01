@@ -320,3 +320,12 @@ test('tipos diferentes no mesmo arquivo caem cada um na sua coluna', async () =>
     `G-1,,,Lead WhatsApp,${LEAD_TIME},,`,
   ].sort());
 });
+
+test('página explica a contagem Todas para gbraid e wbraid', async () => {
+  const ctx = await setup();
+  const { body } = await exportsPage(ctx);
+  assert.match(
+    body,
+    /Conversões com gbraid ou wbraid exigem que a ação de conversão no Google Ads esteja com a contagem em “Todas”\./,
+  );
+});

@@ -205,6 +205,7 @@ export function exportsPage(
       ? html`<p class="muted small">${stats.anuncioSemIdentificador} contato(s) de anúncio chegaram sem identificador de clique (gclid, gbraid ou wbraid). Eles aparecem no relatório, mas não entram no arquivo.</p>`
       : ''}
     <p class="muted small">Gere o arquivo, baixe e envie em Google Ads → Metas → Conversões → Uploads. Depois marque como importado.</p>
+    <p class="muted small">Conversões com gbraid ou wbraid exigem que a ação de conversão no Google Ads esteja com a contagem em “Todas”.</p>
 
     <h2 class="section-title">Arquivos gerados</h2>
     ${files.length
