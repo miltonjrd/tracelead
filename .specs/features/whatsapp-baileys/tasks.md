@@ -146,9 +146,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Tests for C8-C14 pass
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 28 tests pass
+- [x] Tests for C8-C14 pass
+- [x] Gate check passes: `npm test`
+- [x] Test count: 28 tests pass
 
 **Tests**: unit
 **Gate**: quick
