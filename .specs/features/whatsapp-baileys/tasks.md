@@ -272,9 +272,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Test "BAILEYS_MAX_SESSIONS padrão 5 e lê o valor" passes
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 48 tests pass
+- [x] Test "BAILEYS_MAX_SESSIONS padrão 5 e lê o valor" passes
+- [x] Gate check passes: `npm test`
+- [x] Test count: 48 tests pass
 
 **Tests**: unit
 **Gate**: quick
@@ -474,7 +474,7 @@ Proof: run unit | ✔ login salvo corrompido pede qr novo
 
 ## Handoff
 
-**Settled mid-build:** user "implementa" - approves tasks as presented (C7 keeps the existing 303 redirect, not 403) and inline execution.
+**Settled mid-build:** user "implementa" - approves tasks as presented (C7 keeps the existing 303 redirect, not 403) and inline execution. Deviation (T5/T9): the CLI is a separate process, so WA-04 AC 3 "close the session" is done by `WhatsAppSessions.reconcile()`, called every 60 s by the server (T14), not by the CLI itself.
 **Dispatched:** none
 **Walked:** none
 

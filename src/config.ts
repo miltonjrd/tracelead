@@ -13,6 +13,7 @@ export interface Config {
   jobsTimezone: string;
   conversionNames: { lead: string; venda: string };
   meta: { appSecret: string; verifyToken: string };
+  whatsapp: { maxSessions: number };
   googleAds: {
     developerToken: string;
     clientId: string;
@@ -24,6 +25,11 @@ export interface Config {
 }
 
 type Env = Record<string, string | undefined>;
+
+function positiveInt(value: string, fallback: number): number {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
 
 export function loadConfig(env: Env = process.env): Config {
   const production = env.NODE_ENV === 'production';
@@ -51,6 +57,7 @@ export function loadConfig(env: Env = process.env): Config {
       lead: get('CONVERSION_NAME_LEAD', 'Lead WhatsApp'),
       venda: get('CONVERSION_NAME_VENDA', 'Venda WhatsApp'),
     },
+    whatsapp: { maxSessions: positiveInt(get('BAILEYS_MAX_SESSIONS'), 5) },
     meta: {
       appSecret: get('META_APP_SECRET'),
       verifyToken: get('META_VERIFY_TOKEN'),

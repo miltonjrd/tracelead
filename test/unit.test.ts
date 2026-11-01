@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { openDb } from '../src/db/client.js';
+import { loadConfig } from '../src/config.js';
 import { toCsv } from '../src/lib/csv.js';
 import { formatPhone, normalizePhone, parseMoney } from '../src/lib/format.js';
 import { html } from '../src/lib/html.js';
@@ -73,4 +74,11 @@ test('sessão renova a cada hora e expira em 7 dias sem uso', async () => {
   const idle = await createSession(db, user.id, t0);
   assert.equal(await resolveSession(db, idle, t0 + SESSION_TTL_MS + 1000), null, 'sem uso por 7 dias expira');
   assert.equal(await resolveSession(db, 'token-falso'), null);
+});
+
+test('BAILEYS_MAX_SESSIONS padrão 5 e lê o valor', () => {
+  assert.equal(loadConfig({}).whatsapp.maxSessions, 5);
+  assert.equal(loadConfig({ BAILEYS_MAX_SESSIONS: '12' }).whatsapp.maxSessions, 12);
+  assert.equal(loadConfig({ BAILEYS_MAX_SESSIONS: 'abc' }).whatsapp.maxSessions, 5, 'valor inválido volta ao padrão');
+  assert.equal(loadConfig({ BAILEYS_MAX_SESSIONS: '0' }).whatsapp.maxSessions, 5, 'zero volta ao padrão');
 });
