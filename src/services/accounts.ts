@@ -10,6 +10,12 @@ export interface ClientInput {
   currency?: string;
   googleAdsCustomerId?: string | null;
   whatsappPhoneNumberId?: string | null;
+  whatsappMode?: string;
+}
+
+export function checkWhatsappMode(mode: string): 'baileys' | 'cloud' {
+  if (mode !== 'baileys' && mode !== 'cloud') throw new Error(`Modo de WhatsApp inválido: ${mode}`);
+  return mode;
 }
 
 function cleanCustomerId(id: string | null | undefined): string | null | undefined {
@@ -26,6 +32,7 @@ function checkTimezone(tz: string): void {
 
 export async function createClient(db: Db, input: ClientInput, now = Date.now()): Promise<Client> {
   if (input.timezone) checkTimezone(input.timezone);
+  const whatsappMode = input.whatsappMode === undefined ? undefined : checkWhatsappMode(input.whatsappMode);
   const [client] = await db
     .insert(clients)
     .values({
@@ -35,6 +42,7 @@ export async function createClient(db: Db, input: ClientInput, now = Date.now())
       currency: input.currency ?? 'BRL',
       googleAdsCustomerId: cleanCustomerId(input.googleAdsCustomerId) ?? null,
       whatsappPhoneNumberId: input.whatsappPhoneNumberId || null,
+      ...(whatsappMode ? { whatsappMode } : {}),
       createdAt: now,
     })
     .returning();
@@ -49,6 +57,7 @@ export async function updateClient(db: Db, id: number, input: Partial<ClientInpu
   if (input.currency !== undefined) set.currency = input.currency;
   if (input.googleAdsCustomerId !== undefined) set.googleAdsCustomerId = cleanCustomerId(input.googleAdsCustomerId);
   if (input.whatsappPhoneNumberId !== undefined) set.whatsappPhoneNumberId = input.whatsappPhoneNumberId || null;
+  if (input.whatsappMode !== undefined) set.whatsappMode = checkWhatsappMode(input.whatsappMode);
   const [client] = await db.update(clients).set(set).where(eq(clients.id, id)).returning();
   if (!client) throw new Error(`Cliente ${id} não existe`);
   return client;

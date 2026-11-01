@@ -230,9 +230,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Tests "updateClient troca o modo do whatsapp" and "updateClient recusa modo inválido" pass
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 45 tests pass
+- [x] Tests "updateClient troca o modo do whatsapp" and "updateClient recusa modo inválido" pass
+- [x] Gate check passes: `npm test`
+- [x] Test count: 45 tests pass
 
 **Tests**: unit
 **Gate**: quick
