@@ -223,5 +223,5 @@ Proof: run unit | ✔ tipos diferentes no mesmo arquivo caem cada um na sua colu
 ## Handoff
 
 **Settled mid-build:** none (ajuste do agente, sem decisão do usuário: os testes de coluna C2-C4 passaram da T2 para a T4, porque a coluna só existe no CSV; as contagens de teste de T3-T5 passaram a ser o total de `test/exportBraid.test.ts`)
-**Dispatched:** none
-**Walked:** none
+**Dispatched:** Verifier round 1 at HEAD c37cfa3 (proofs green: 16 pass, 0 fail) - sent
+**Walked:** não percorrido em navegador: a única tela tocada é `/admin/c/:cid/exportacoes`, com dois parágrafos e uma contagem, e os testes de rota (`test/exportBraid.test.ts`) leem a página renderizada. Para ver: entrar como admin, abrir Exportações de um cliente com um contato de clique só com `gbraid`.
