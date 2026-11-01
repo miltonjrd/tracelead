@@ -167,9 +167,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Tests for C1-C3, C5, C6, C15-C19, C25-C27 pass using a fake socket and fake timers
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 41 tests pass
+- [x] Tests for C1-C3, C5, C6, C15-C19, C25-C27 pass using a fake socket and fake timers
+- [x] Gate check passes: `npm test`
+- [x] Test count: 41 tests pass
 
 **Tests**: unit
 **Gate**: quick
