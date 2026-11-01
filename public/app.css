@@ -22,31 +22,6 @@
   color-scheme: light;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #121412;
-    --surface: #1b1e1b;
-    --surface-2: #252925;
-    --text: #e8ebe7;
-    --muted: #a0a89f;
-    --border: #333833;
-    --primary: #22a355;
-    --primary-hover: #2bb862;
-    --primary-text: #07130b;
-    --danger: #f0715f;
-    --ok-bg: #173523;
-    --ok-text: #a8e3bc;
-    --warn-bg: #3a2d10;
-    --warn-text: #f3d08a;
-    --error-bg: #3b1814;
-    --error-text: #f6b4aa;
-    --info-bg: #182a44;
-    --info-text: #b4ccf2;
-    --shadow: none;
-    color-scheme: dark;
-  }
-}
-
 *,
 *::before,
 *::after {
@@ -651,7 +626,7 @@ tbody tr:last-child td {
   max-width: 280px;
   margin: 16px auto;
   padding: 12px;
-  background: #fff; /* a QR code only scans dark-on-light, in dark mode too */
+  background: #fff; /* a QR code only scans dark-on-light */
   border-radius: var(--radius);
 }
 
