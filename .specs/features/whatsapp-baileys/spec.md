@@ -118,6 +118,22 @@ A conexão atual usa a Cloud API da Meta (app, webhook, App secret, Phone number
 
 ---
 
+### P1: A sessão resiste a erros e limites sem pedir novo QR ⭐ MVP
+
+**User Story**: Como loja, quero que um erro passageiro do WhatsApp não me obrigue a escanear o QR de novo.
+
+**Why P1**: Acrescentada na verificação (round 1): o 500 do Baileys é o código padrão para erros de stream desconhecidos.
+
+**Acceptance Criteria**:
+
+1. IF a conexão fechar com o código 500 THEN the system SHALL manter o login salvo e reconectar com a mesma espera crescente do critério WA-03.2.
+2. WHEN o WhatsApp fechar a conexão com 515 (reinício necessário) após o scan THEN the system SHALL reabrir o socket na hora com o login salvo.
+3. IF o app reiniciar com mais clientes com login salvo do que `BAILEYS_MAX_SESSIONS` THEN the system SHALL reabrir só até o limite e registrar um aviso para cada cliente que ficou de fora.
+
+**Independent Test**: Simular o fechamento 500 e ver o login mantido e uma nova tentativa agendada.
+
+---
+
 ## Edge Cases
 
 - IF o QR code não for escaneado em 2 minutos THEN the system SHALL encerrar a tentativa e mostrar "QR expirado" com botão "Gerar novo QR".
@@ -132,8 +148,9 @@ A conexão atual usa a Cloud API da Meta (app, webhook, App secret, Phone number
 | WA-02 | P1: Mensagens viram leads (critérios 1-7) | Design | Pending |
 | WA-03 | P1: Sessão sobrevive (critérios 1-5) | Design | Pending |
 | WA-04 | P2: Modo por cliente (critérios 1-5) | Design | Pending |
+| WA-05 | P1: Sessão resiste a erros e limites (critérios 1-3) | Verification | Pending |
 
-**Coverage:** 4 total, 0 mapped to tasks, 4 unmapped
+**Coverage:** 5 total, 5 mapped to checks
 
 ---
 

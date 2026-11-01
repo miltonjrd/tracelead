@@ -82,7 +82,8 @@ export async function settle() {
   for (let i = 0; i < 8; i++) await new Promise((r) => setImmediate(r));
 }
 
-export function silentLog(): SessionLog & { errors: unknown[] } {
+export function silentLog(): SessionLog & { errors: unknown[]; warns: unknown[] } {
   const errors: unknown[] = [];
-  return { info() {}, warn() {}, error: (o) => void errors.push(o), errors };
+  const warns: unknown[] = [];
+  return { info() {}, warn: (o) => void warns.push(o), error: (o) => void errors.push(o), errors, warns };
 }

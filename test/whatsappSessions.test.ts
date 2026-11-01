@@ -193,3 +193,29 @@ test('mensagem recebida na sessão vira contato e reconcile fecha cliente que sa
   assert.equal(sock.loggedOut, true);
   assert.deepEqual(sessions.status(client.id), { state: 'desconectado' });
 });
+
+test('close 500 mantém o login e reconecta com espera', async () => {
+  const { sessions, fake, timers, client, db } = await setup();
+  await saveRegistered(db, client.id);
+  await sessions.startAll();
+  fake.last().open();
+  fake.last().close(500);
+  await settle();
+  assert.deepEqual(sessions.status(client.id), { state: 'reconectando', attempt: 1 });
+  assert.equal((await db.select().from(whatsappAuth).where(eq(whatsappAuth.clientId, client.id))).length > 0, true);
+  await timers.advance(1000);
+  assert.equal(fake.socks.length, 2);
+  assert.equal(fake.last().auth.creds.registered, true);
+});
+
+test('reinício acima do limite reabre só até o limite', async () => {
+  const { sessions, fake, client, db, log } = await setup({ max: 1 });
+  const second = await createClient(db, { name: 'Loja 2' });
+  await saveRegistered(db, client.id);
+  await saveRegistered(db, second.id);
+  await sessions.startAll();
+  assert.equal(fake.socks.length, 1);
+  assert.equal(sessions.status(client.id).state, 'conectando');
+  assert.equal(sessions.status(second.id).state, 'desconectado');
+  assert.equal(log.warns.length, 1);
+});

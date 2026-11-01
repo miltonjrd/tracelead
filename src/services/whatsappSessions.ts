@@ -42,7 +42,6 @@ export const QR_TIMEOUT_MS = 2 * 60 * 1000;
 const BACKOFF_START_MS = 1000;
 const BACKOFF_MAX_MS = 60_000;
 const LOGGED_OUT = 401;
-const BAD_SESSION = 500;
 const RESTART_REQUIRED = 515;
 
 const defaultSchedule: Schedule = (fn, ms) => {
@@ -228,7 +227,9 @@ export class WhatsAppSessions {
     await s.saveChain;
     if (s.gen !== gen) return;
     s.sock = undefined;
-    if (code === LOGGED_OUT || code === BAD_SESSION) {
+    // Only 401 means the phone removed the device. 500 is Baileys' default for any unknown stream
+    // error, so it retries with backoff and keeps the saved login.
+    if (code === LOGGED_OUT) {
       this.stop(s);
       await clearAuthState(this.db, clientId);
       s.status = { state: 'desconectado_logout' };

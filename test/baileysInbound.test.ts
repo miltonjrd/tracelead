@@ -105,8 +105,16 @@ test('lid sem telefone é ignorado e lid resolvido é aceito', async () => {
   assert.equal(log.warns.length, 1);
   assert.equal(log.warns[0]!.obj.reason, 'lid-sem-telefone');
 
-  await processUpsert(db, client, { type: 'notify', messages: [msg({ jid: lid, alt: '5511911112222@s.whatsapp.net', id: 'L2' })] }, async () => null, log, now);
+  // remoteJidAlt wins over the lookup: the lookup would answer another phone and must not even be asked
+  let asked = 0;
+  const otherPhone = async () => {
+    asked++;
+    return '5511900009999@s.whatsapp.net';
+  };
+  await processUpsert(db, client, { type: 'notify', messages: [msg({ jid: lid, alt: '5511911112222@s.whatsapp.net', id: 'L2' })] }, otherPhone, log, now);
   assert.ok(await db.query.contacts.findFirst({ where: eq(contacts.phone, '+5511911112222') }));
+  assert.equal(await db.query.contacts.findFirst({ where: eq(contacts.phone, '+5511900009999') }), undefined);
+  assert.equal(asked, 0);
 
   await processUpsert(db, client, { type: 'notify', messages: [msg({ jid: lid, id: 'L3' })] }, async (l) => (l === lid ? '5511933334444@s.whatsapp.net' : null), log, now);
   assert.ok(await db.query.contacts.findFirst({ where: eq(contacts.phone, '+5511933334444') }));

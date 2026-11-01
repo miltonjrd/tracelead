@@ -470,6 +470,15 @@ Proof: run unit | ✔ duas conexões da mesma loja usam um socket
 **C27** - Corrupted saved creds are deleted and the next connect shows a QR (Edge case 3)
 Proof: run unit | ✔ login salvo corrompido pede qr novo
 
+**C28** - A `500` close keeps the saved login and schedules a retry after 1 s (WA-05, AC 1)
+Proof: run unit | ✔ close 500 mantém o login e reconecta com espera
+
+**C29** - After the scan, a `515` close reopens the socket at once with the saved login (WA-05, AC 2)
+Proof: run unit | ✔ depois do scan o close 515 reabre com o login salvo
+
+**C30** - With a limit of 1 and two saved logins, `startAll` opens one socket and warns once (WA-05, AC 3)
+Proof: run unit | ✔ reinício acima do limite reabre só até o limite
+
 ---
 
 ## Handoff
