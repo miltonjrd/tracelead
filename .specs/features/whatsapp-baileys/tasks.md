@@ -125,9 +125,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Tests "auth state guarda e relê creds e chaves", "auth state apaga só o cliente pedido", "auth state corrompido volta a creds novas" pass
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 21 tests pass
+- [x] Tests "auth state guarda e relê creds e chaves", "auth state apaga só o cliente pedido", "auth state corrompido volta a creds novas" pass
+- [x] Gate check passes: `npm test`
+- [x] Test count: 21 tests pass
 
 **Tests**: unit
 **Gate**: quick
