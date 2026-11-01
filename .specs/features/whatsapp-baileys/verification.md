@@ -1,6 +1,6 @@
 # WhatsApp via Baileys verification
 
-**Verdict**: FAIL
+**Verdict**: PASS (round 1 found 4 findings; all closed in 797d0b0)
 **Proofs**: `proofs.md` at 27b44cd
 **Verifier**: independent sub-agent (author != verifier)
 

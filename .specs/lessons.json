@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "promote_threshold": 2,
+  "window_days": 45,
+  "quarantine_threshold": 2,
+  "next_id": 4,
+  "lessons": [
+    {
+      "id": "L-001",
+      "key": "ac_gap::when a library maps an unknown error to a generic code baileys 500 read its source before treating that code as a permanent state like logout wiping credentials needs a code that only means that",
+      "text": "When a library maps an unknown error to a generic code (Baileys: 500), read its source before treating that code as a permanent state like logout; wiping credentials needs a code that only means that.",
+      "signal": "ac_gap",
+      "scope": "src/services",
+      "status": "candidate",
+      "features": [
+        "whatsapp-baileys"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "C17 / whatsappSessions.ts (src/services)"
+      ],
+      "created": "2026-11-01T00:54:49Z",
+      "last_seen": "2026-11-01T00:54:49Z"
+    },
+    {
+      "id": "L-002",
+      "key": "weak_test::a test for a resolution order must make the lower priority source return a different value and assert it was not asked a source that returns null passes under any order",
+      "text": "A test for a resolution order must make the lower-priority source return a different value and assert it was not asked; a source that returns null passes under any order.",
+      "signal": "weak_test",
+      "scope": "test",
+      "status": "candidate",
+      "features": [
+        "whatsapp-baileys"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "C14 (test)"
+      ],
+      "created": "2026-11-01T00:54:49Z",
+      "last_seen": "2026-11-01T00:54:49Z"
+    },
+    {
+      "id": "L-003",
+      "key": "ac_gap::a rule built in a task limit on startup restart required reopen that no criterion names has no check append a criterion with an id and a check when you add the rule",
+      "text": "A rule built in a task (limit on startup, restart-required reopen) that no criterion names has no check; append a criterion with an ID and a check when you add the rule.",
+      "signal": "ac_gap",
+      "scope": "spec",
+      "status": "candidate",
+      "features": [
+        "whatsapp-baileys"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "tasks.md C28-C30 (spec)"
+      ],
+      "created": "2026-11-01T00:54:49Z",
+      "last_seen": "2026-11-01T00:54:49Z"
+    }
+  ]
+}
