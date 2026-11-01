@@ -1,6 +1,6 @@
 # export-braid proofs
 
-**HEAD**: c55314c
+**HEAD**: 3a95d01
 **Tree**: clean
 **Shell**: /bin/sh
 **Result**: 16 pass, 0 fail
@@ -29,13 +29,13 @@
 `Run unit` - exit 0
 
 ```
-✔ qr não escaneado em 2 minutos expira (17.019545ms)
-✔ duas conexões da mesma loja usam um socket (10.372599ms)
-✔ login salvo corrompido pede qr novo (10.351283ms)
-✔ mensagem recebida na sessão vira contato e reconcile fecha cliente que saiu do modo baileys (18.088809ms)
-✔ close 500 mantém o login e reconecta com espera (29.746558ms)
-✔ reinício acima do limite reabre só até o limite (20.508943ms)
-✔ tela de conexão mostra cada estado (1.174962ms)
+✔ qr não escaneado em 2 minutos expira (18.743168ms)
+✔ duas conexões da mesma loja usam um socket (11.156559ms)
+✔ login salvo corrompido pede qr novo (11.697283ms)
+✔ mensagem recebida na sessão vira contato e reconcile fecha cliente que saiu do modo baileys (19.924613ms)
+✔ close 500 mantém o login e reconecta com espera (30.040339ms)
+✔ reinício acima do limite reabre só até o limite (19.029676ms)
+✔ tela de conexão mostra cada estado (1.176036ms)
 ℹ tests 81
 ℹ suites 0
 ℹ pass 81
@@ -43,5 +43,5 @@
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 8600.642504
+ℹ duration_ms 8532.111533
 ```
