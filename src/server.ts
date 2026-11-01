@@ -22,9 +22,13 @@ const app = await buildApp({ config, db, sessions, logger: { level: process.env.
 
 const stopJobs = config.enableJobs ? startJobs(db, config, app.log) : () => {};
 
+let reconcileTimer: NodeJS.Timeout | undefined;
+
 async function shutdown(signal: string) {
   app.log.info(`${signal} recebido, encerrando`);
   stopJobs();
+  clearInterval(reconcileTimer);
+  await sessions.stopAll();
   await app.close();
   db.$client.close();
   process.exit(0);
@@ -33,3 +37,9 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'));
 process.on('SIGINT', () => void shutdown('SIGINT'));
 
 await app.listen({ port: config.port, host: config.host });
+
+// Sessions open after the server is listening, so a slow WhatsApp never delays /health.
+// The CLI runs in another process; reconcile() picks up a client switched away from Baileys.
+void sessions.startAll();
+reconcileTimer = setInterval(() => void sessions.reconcile().catch((err) => app.log.error(err)), 60_000);
+reconcileTimer.unref();

@@ -113,7 +113,7 @@ sequenceDiagram
 - **Purpose**: Única fronteira com o Baileys; os testes trocam por um falso.
 - **Location**: `src/services/baileysSocket.ts`
 - **Interfaces**: `(auth: AuthenticationState, logger) => Promise<WaSocket>` em que `WaSocket` é o subconjunto usado: `ev.on`, `ev.off`, `end`, `logout`, `user`, `signalRepository.lidMapping.getPNForLID`.
-- **Config do socket real**: `version` de `fetchLatestWaWebVersion()` com fallback para a embutida (evita o loop 408 de versão velha, issue aberta), `browser: Browsers.ubuntu('Tracker')`, `syncFullHistory: false`, `shouldSyncHistoryMessage: () => false`, `markOnlineOnConnect: false` (a loja continua recebendo notificações no celular), `keys: makeCacheableSignalKeyStore(...)`, logger pino em `warn`.
+- **Config do socket real**: `version` de `fetchLatestWaWebVersion()` com fallback para a embutida (evita o loop 408 de versão velha, issue aberta), `browser: Browsers.ubuntu('Tracker')`, `syncFullHistory: false` (o `shouldSyncHistoryMessage` padrão fica: desligá-lo tira os mapeamentos LID iniciais), `markOnlineOnConnect: false` (a loja continua recebendo notificações no celular), `keys: makeCacheableSignalKeyStore(...)`, logger pino em `warn`.
 
 ### `whatsappAuthState`
 
@@ -209,7 +209,7 @@ type SessionStatus =
 | Pacote | `baileys@7.0.0-rc14` exato (o nome novo no npm; `@whiskeysockets/baileys` é o mesmo projeto) | `latest` no npm; fixar evita uma RC nova entrar sozinha |
 | QR | `qrcode@1.5.4` → SVG no servidor | Sem script novo no navegador; respeita a CSP atual |
 | Atualização da tela | Polling HTMX a cada 2 s, só enquanto a página de conexão está aberta | HTMX já está no projeto; SSE seria mais código para 1-5 lojas |
-| Histórico | `shouldSyncHistoryMessage: () => false` e ignorar `append` | Spec: não processar conversas anteriores |
+| Histórico | `syncFullHistory: false`, sync padrão do Baileys mantido, e só `messages.upsert` tipo `notify` é tratado | Spec: não processar conversas anteriores; a lib avisa que desligar todo o sync quebra o mapeamento LID |
 | Online | `markOnlineOnConnect: false` | A loja continua recebendo notificações no celular |
 
 AD-001 em `.specs/STATE.md`: "Toda fonte de mensagens do WhatsApp entra por `handleInboundMessage`; o modo por cliente (`clients.whatsapp_mode`) escolhe a fonte."
