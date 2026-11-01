@@ -377,8 +377,8 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Gate check passes: `npm run build && npm run typecheck && npm test`
-- [ ] Test count: 58 tests pass
+- [x] Gate check passes: `npm run build && npm run typecheck && npm test`
+- [x] Test count: 58 tests pass
 
 **Tests**: none
 **Gate**: build

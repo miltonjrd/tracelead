@@ -3,7 +3,7 @@
 Liga **anúncio → conversa no WhatsApp → venda** e devolve leads e vendas ao Google Ads como conversões offline.
 
 - `t.js` no site do cliente guarda o `gclid`/UTMs e, no clique do botão de WhatsApp, acrescenta um ref curto à mensagem (`(ref. 4F7KX)`).
-- O webhook da WhatsApp Cloud API (coexistência) lê o ref e liga o telefone ao clique. O texto das conversas não é guardado.
+- A conexão com o WhatsApp lê o ref e liga o telefone ao clique: por padrão a loja escaneia um QR code (Baileys); a Cloud API da Meta continua disponível como modo alternativo. O texto das conversas não é guardado.
 - O cliente marca "Vendeu" + valor ou "Não comprou" no painel (`/painel`, instalável como app no celular).
 - O admin (`/admin`) vê o relatório semanal, corrige vendas, gera os CSVs "Lead WhatsApp" e "Venda WhatsApp" e acompanha backup e sincronização de gasto.
 
@@ -43,7 +43,30 @@ npm test
 
 Atualizar: `git pull && docker compose up -d --build` (as migrações do banco rodam sozinhas na inicialização).
 
-## WhatsApp Cloud API (Meta)
+## WhatsApp
+
+Cada cliente tem um modo de conexão (`clients.whatsapp_mode`). O padrão para clientes novos é `baileys`.
+
+### Baileys (padrão): a loja escaneia um QR code
+
+1. A loja entra no painel e abre **WhatsApp** (`/painel/whatsapp`), ao lado do título da lista de contatos.
+2. Toca em **Conectar WhatsApp**, e no celular vai em *WhatsApp → Aparelhos conectados → Conectar um aparelho* e aponta a câmera para o QR. O QR vale por 2 minutos; depois aparece **Gerar novo QR**.
+3. Pronto: o painel mostra **Conectado** e o número. A conexão volta sozinha depois de um deploy ou queda de rede. Se a loja remover o aparelho pelo celular, aparece **Desconectado** e é preciso escanear de novo.
+4. O gestor vê o estado em Admin → Sistema e pode **Desconectar**.
+
+O tracker só recebe mensagens: não envia nada, não aparece como online e ignora grupos, status e conversas antigas.
+
+`BAILEYS_MAX_SESSIONS` (padrão 5) limita quantas lojas ficam conectadas ao mesmo tempo no processo.
+
+**Atenção:**
+- O Baileys é uma biblioteca **não oficial** (simula o WhatsApp Web) e usa a versão `7.0.0-rc14`, ainda candidata a lançamento. O WhatsApp pode mudar o protocolo e derrubar as conexões até a biblioteca ser atualizada, e o uso não oficial pode levar ao **banimento do número da loja**.
+- O login do WhatsApp fica na tabela `whatsapp_auth` do banco, então **quem tiver uma cópia do banco ou do backup pode se passar pelo aparelho conectado**. Trate o backup como segredo.
+- A dependência `libsignal` do Baileys é GPL-3.0. O app roda só na sua VPS e não é distribuído; se isso mudar, peça uma revisão jurídica.
+- O mapeamento entre o ID interno (LID) e o telefone vem do próprio WhatsApp. Se uma mensagem chegar sem telefone resolvido, ela é ignorada e o log registra `lid-sem-telefone`.
+
+### Cloud API da Meta (modo `cloud`, desligado por padrão)
+
+Para um cliente usar a Cloud API: `docker compose exec app node dist/cli.js update-client --id 1 --whatsapp-mode cloud` (a sessão Baileys dele é encerrada em até 1 minuto). Clientes que já tinham Phone number ID viraram `cloud` na migração. Depois:
 
 1. Em developers.facebook.com, crie um app do tipo Business com o produto WhatsApp e conecte o número do cliente pelo fluxo de **coexistência** (o número continua no app WhatsApp Business).
 2. Em WhatsApp → Configuração → Webhook:
@@ -54,6 +77,8 @@ Atualizar: `git pull && docker compose up -d --build` (as migrações do banco r
 4. Copie o **Phone number ID** do número e cadastre:
    `docker compose exec app node dist/cli.js update-client --id 1 --phone-number-id <ID>`
 5. `docker compose up -d` para recarregar o `.env`. Em Admin → Sistema aparece o que está faltando.
+
+O webhook só processa clientes em modo `cloud`; para voltar ao QR: `update-client --id 1 --whatsapp-mode baileys`.
 
 ## Google Ads
 
