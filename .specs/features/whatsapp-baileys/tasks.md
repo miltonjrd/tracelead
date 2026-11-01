@@ -475,8 +475,8 @@ Proof: run unit | ✔ login salvo corrompido pede qr novo
 ## Handoff
 
 **Settled mid-build:** user "implementa" - approves tasks as presented (C7 keeps the existing 303 redirect, not 403) and inline execution. Deviation (T5/T9): the CLI is a separate process, so WA-04 AC 3 "close the session" is done by `WhatsAppSessions.reconcile()`, called every 60 s by the server (T14), not by the CLI itself.
-**Dispatched:** none
-**Walked:** none
+**Dispatched:** Verifier (fresh sub-agent, round 1) at HEAD 27b44cd; no screens sub-agent: no criterion cites a capture.
+**Walked:** Story 1 (QR): ran the real app (`npx tsx src/server.ts`, empty temp DB, client `loja`), signed in at `/login`, opened `/painel/whatsapp` (showed "Conectar WhatsApp"), posted `/painel/whatsapp/conectar` (showed "Conectando"), and `/painel/whatsapp/estado` returned a real QR as inline SVG with "Aparelhos conectados" and the 2 s poll; "Desconectar" returned "Desconectado"; SIGTERM shut the app down cleanly. Not walked: scanning the QR with a real phone (no phone available here), so "Conectado", real incoming messages with a ref, LID resolution on a real chat, and reconnect after restart with saved login are proven only by the fake-socket tests; the user must do this once. Stories 2 and 3 have no screen of their own.
 
 ---
 
