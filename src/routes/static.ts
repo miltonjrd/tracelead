@@ -26,6 +26,13 @@ const versioned: Record<string, Asset> = {
   'htmx.min.js': load(require.resolve('htmx.org/dist/htmx.min.js'), 'text/javascript; charset=utf-8'),
 };
 
+const fonts: Record<string, Asset> = Object.fromEntries(
+  [400, 500, 700].map((w) => [
+    `roboto-${w}.woff2`,
+    load(require.resolve(`@fontsource/roboto/files/roboto-latin-${w}-normal.woff2`), 'font/woff2'),
+  ]),
+);
+
 const rootFiles: Record<string, { asset: Asset; cache: string }> = {
   '/t.js': { asset: load(resolve(publicDir, 't.js'), 'text/javascript; charset=utf-8'), cache: 'public, max-age=300' },
   '/sw.js': { asset: load(resolve(publicDir, 'sw.js'), 'text/javascript; charset=utf-8'), cache: 'no-cache' },
@@ -43,6 +50,12 @@ export function assetUrl(name: keyof typeof versioned): string {
 export async function staticRoutes(app: FastifyInstance): Promise<void> {
   app.get<{ Params: { name: string } }>('/static/:name', async (req, reply) => {
     const asset = versioned[req.params.name];
+    if (!asset) return reply.code(404).send('Não encontrado');
+    return reply.type(asset.type).header('Cache-Control', 'public, max-age=31536000, immutable').send(asset.body);
+  });
+  // The file name is fixed per weight, so it can be cached forever.
+  app.get<{ Params: { name: string } }>('/static/fonts/:name', async (req, reply) => {
+    const asset = fonts[req.params.name];
     if (!asset) return reply.code(404).send('Não encontrado');
     return reply.type(asset.type).header('Cache-Control', 'public, max-age=31536000, immutable').send(asset.body);
   });

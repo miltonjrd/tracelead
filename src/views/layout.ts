@@ -18,19 +18,21 @@ export function page(opts: { title: string; body: SafeHtml; user?: SessionUser |
 <script src="${assetUrl('app.js')}" defer></script>
 </head>
 <body>
-<header class="topbar">
-  <div class="topbar-inner">
+${user || nav
+  ? html`<div class="shell">
+  <aside class="sidebar">
     <a class="brand" href="/">TraceLead</a>
+    ${nav ?? ''}
     ${user
       ? html`<form method="post" action="/logout" class="logout">
           <span class="muted">${user.username}</span>
           <button class="btn-link" type="submit">Sair</button>
         </form>`
       : ''}
-  </div>
-  ${nav ?? ''}
-</header>
-<main class="container">${body}</main>
+  </aside>
+  <main class="container">${body}</main>
+</div>`
+  : html`<main class="container"><a class="brand brand-solo" href="/">TraceLead</a>${body}</main>`}
 </body>
 </html>`}`;
 }

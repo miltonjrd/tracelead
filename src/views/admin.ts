@@ -18,14 +18,12 @@ const SECTIONS: [Section, string, string][] = [
 ];
 
 export function adminNav(client: Client, active: Section, clientCount: number): SafeHtml {
-  return html`<nav class="tabs" aria-label="Admin">
-    <div class="tabs-inner">
-      ${clientCount > 1 ? html`<a class="tab" href="/admin?todos=1">Clientes</a>` : ''}
+  return html`<nav class="side-nav" aria-label="Admin">
+      ${clientCount > 1 ? html`<a class="side-link" href="/admin?todos=1">Clientes</a>` : ''}
       ${SECTIONS.map(
         ([key, label, path]) =>
-          html`<a class="tab${key === active ? ' active' : ''}" href="/admin/c/${client.id}${path}"${key === active ? html` aria-current="page"` : ''}>${label}</a>`,
+          html`<a class="side-link${key === active ? ' active' : ''}" href="/admin/c/${client.id}${path}"${key === active ? html` aria-current="page"` : ''}>${label}</a>`,
       )}
-    </div>
   </nav>`;
 }
 
