@@ -1,6 +1,6 @@
 {
-  "name": "Tracker de vendas",
-  "short_name": "Tracker",
+  "name": "TraceLead",
+  "short_name": "TraceLead",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

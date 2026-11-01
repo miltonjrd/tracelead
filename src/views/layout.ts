@@ -10,7 +10,7 @@ export function page(opts: { title: string; body: SafeHtml; user?: SessionUser |
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="htmx-config" content='{"includeIndicatorStyles":false}'>
 <meta name="theme-color" content="#15803d">
-<title>${title} · Tracker</title>
+<title>${title} · TraceLead</title>
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" href="${assetUrl('icon.svg')}" type="image/svg+xml">
 <link rel="stylesheet" href="${assetUrl('app.css')}">
@@ -20,7 +20,7 @@ export function page(opts: { title: string; body: SafeHtml; user?: SessionUser |
 <body>
 <header class="topbar">
   <div class="topbar-inner">
-    <a class="brand" href="/">Tracker</a>
+    <a class="brand" href="/">TraceLead</a>
     ${user
       ? html`<form method="post" action="/logout" class="logout">
           <span class="muted">${user.username}</span>

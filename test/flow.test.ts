@@ -182,7 +182,7 @@ test('health e backup', async () => {
   const r = await ctx.app.inject({ method: 'POST', url: `/admin/c/${ctx.client.id}/sistema/backup`, ...form(cookie, {}) });
   assert.match(r.headers.location as string, /ok=job/);
   const page = await ctx.app.inject({ method: 'GET', url: `/admin/c/${ctx.client.id}/sistema`, headers: { cookie } });
-  assert.match(page.body, /tracker-.+\.db \(\d+ KB\)/);
+  assert.match(page.body, /tracelead-.+\.db \(\d+ KB\)/);
   assert.match(page.body, new RegExp(`data-client=&quot;${ctx.client.publicKey}&quot;`), 'snippet exibido como texto');
   assert.match(page.body, /aria-current="page"/);
 });

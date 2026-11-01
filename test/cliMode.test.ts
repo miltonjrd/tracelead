@@ -20,7 +20,7 @@ function cli(dbPath: string, ...args: string[]) {
 }
 
 test('cli troca o modo do whatsapp', async () => {
-  const dbPath = join(mkdtempSync(join(tmpdir(), 'tracker-cli-')), 'cli.db');
+  const dbPath = join(mkdtempSync(join(tmpdir(), 'tracelead-cli-')), 'cli.db');
   const db = openDb(dbPath);
   const client = await createClient(db, { name: 'Loja' });
   const fake = fakeFactory();
@@ -43,7 +43,7 @@ test('cli troca o modo do whatsapp', async () => {
 });
 
 test('cli recusa modo inválido', async () => {
-  const dbPath = join(mkdtempSync(join(tmpdir(), 'tracker-cli-')), 'cli.db');
+  const dbPath = join(mkdtempSync(join(tmpdir(), 'tracelead-cli-')), 'cli.db');
   const db = openDb(dbPath);
   const client = await createClient(db, { name: 'Loja' });
   const r = cli(dbPath, 'update-client', '--id', String(client.id), '--whatsapp-mode', 'xyz');

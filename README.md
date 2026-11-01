@@ -1,4 +1,4 @@
-# Tracker — vendas do WhatsApp × Google Ads
+# TraceLead — vendas do WhatsApp × Google Ads
 
 Liga **anúncio → conversa no WhatsApp → venda** e devolve leads e vendas ao Google Ads como conversões offline.
 
@@ -27,7 +27,7 @@ npm test
 2. **VPS:** instale Docker e o plugin Compose; libere as portas 80 e 443.
 3. **Código e configuração:**
    ```bash
-   git clone <repo> tracker && cd tracker
+   git clone <repo> tracelead && cd tracelead
    cp .env.example .env && nano .env    # TRACK_DOMAIN, BASE_URL, IP_HASH_SECRET (openssl rand -hex 32)
    docker compose up -d --build
    ```
@@ -54,7 +54,7 @@ Cada cliente tem um modo de conexão (`clients.whatsapp_mode`). O padrão para c
 3. Pronto: o painel mostra **Conectado** e o número. A conexão volta sozinha depois de um deploy ou queda de rede. Se a loja remover o aparelho pelo celular, aparece **Desconectado** e é preciso escanear de novo.
 4. O gestor vê o estado em Admin → Sistema e pode **Desconectar**.
 
-O tracker só recebe mensagens: não envia nada, não aparece como online e ignora grupos, status e conversas antigas.
+O TraceLead só recebe mensagens: não envia nada, não aparece como online e ignora grupos, status e conversas antigas.
 
 `BAILEYS_MAX_SESSIONS` (padrão 5) limita quantas lojas ficam conectadas ao mesmo tempo no processo.
 

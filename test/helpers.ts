@@ -19,7 +19,7 @@ export async function setup(opts: { fetchImpl?: FetchLike; env?: Record<string, 
     META_APP_SECRET: APP_SECRET,
     META_VERIFY_TOKEN: 'verify-me',
     BASE_URL: 'http://localhost',
-    BACKUP_DIR: mkdtempSync(join(tmpdir(), 'tracker-backup-')),
+    BACKUP_DIR: mkdtempSync(join(tmpdir(), 'tracelead-backup-')),
     ...opts.env,
   });
   const db = openDb(':memory:');

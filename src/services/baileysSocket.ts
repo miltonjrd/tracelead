@@ -16,10 +16,10 @@ function baileysLogger(log: SessionLog) {
 }
 
 /**
- * The only place that talks to Baileys. The tracker just listens: never marked online (the
+ * The only place that talks to Baileys. TraceLead just listens: never marked online (the
  * store keeps getting notifications on the phone), nothing is sent. The default history sync stays
  * on because Baileys gets its first LID mappings from it; its messages arrive in a different event
- * than `messages.upsert`, which is the only one the tracker handles.
+ * than `messages.upsert`, which is the only one TraceLead handles.
  */
 export const createBaileysSocket: SocketFactory = async (auth: AuthenticationState, log) => {
   const logger = baileysLogger(log);
@@ -28,7 +28,7 @@ export const createBaileysSocket: SocketFactory = async (auth: AuthenticationSta
   return makeWASocket({
     auth: { creds: auth.creds, keys: makeCacheableSignalKeyStore(auth.keys, logger) },
     ...(latest?.isLatest ? { version: latest.version } : {}),
-    browser: Browsers.ubuntu('Tracker'),
+    browser: Browsers.ubuntu('TraceLead'),
     logger,
     syncFullHistory: false,
     markOnlineOnConnect: false,
