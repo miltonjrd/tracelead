@@ -1,9 +1,9 @@
 # whatsapp-baileys proofs
 
-**HEAD**: 27b44cd
-**Tree**: dirty - .claude/skills/tlc-spec-driven/scripts/__pycache__/
+**HEAD**: 797d0b0
+**Tree**: clean
 **Shell**: /bin/sh
-**Result**: 29 pass, 0 fail
+**Result**: 32 pass, 0 fail
 
 | Check | Proof | Result |
 | --- | --- | --- |
@@ -34,6 +34,9 @@
 | C25 | `run unit / ✔ qr não escaneado em 2 minutos expira` | pass |
 | C26 | `run unit / ✔ duas conexões da mesma loja usam um socket` | pass |
 | C27 | `run unit / ✔ login salvo corrompido pede qr novo` | pass |
+| C28 | `run unit / ✔ close 500 mantém o login e reconecta com espera` | pass |
+| C29 | `run unit / ✔ depois do scan o close 515 reabre com o login salvo` | pass |
+| C30 | `run unit / ✔ reinício acima do limite reabre só até o limite` | pass |
 | Build | `npm run build` | pass |
 | Build | `npm run typecheck` | pass |
 
@@ -42,19 +45,19 @@
 `Run unit` - exit 0
 
 ```
-✔ logout pelo celular apaga o login e não reconecta (10.800632ms)
-✔ falha ao reabrir um cliente não derruba os outros (24.097868ms)
-✔ qr não escaneado em 2 minutos expira (17.04978ms)
-✔ duas conexões da mesma loja usam um socket (9.773419ms)
-✔ login salvo corrompido pede qr novo (9.91902ms)
-✔ mensagem recebida na sessão vira contato e reconcile fecha cliente que saiu do modo baileys (18.750773ms)
-✔ tela de conexão mostra cada estado (1.232911ms)
-ℹ tests 59
+✔ qr não escaneado em 2 minutos expira (19.25627ms)
+✔ duas conexões da mesma loja usam um socket (10.187546ms)
+✔ login salvo corrompido pede qr novo (11.888281ms)
+✔ mensagem recebida na sessão vira contato e reconcile fecha cliente que saiu do modo baileys (13.992216ms)
+✔ close 500 mantém o login e reconecta com espera (20.299215ms)
+✔ reinício acima do limite reabre só até o limite (46.100279ms)
+✔ tela de conexão mostra cada estado (1.647323ms)
+ℹ tests 61
 ℹ suites 0
-ℹ pass 59
+ℹ pass 61
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 7647.788218
+ℹ duration_ms 7801.769668
 ```
