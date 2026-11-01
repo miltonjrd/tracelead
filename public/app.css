@@ -646,3 +646,17 @@ tbody tr:last-child td {
 .list {
   padding-left: 20px;
 }
+
+.qr {
+  max-width: 280px;
+  margin: 16px auto;
+  padding: 12px;
+  background: #fff; /* a QR code only scans dark-on-light, in dark mode too */
+  border-radius: var(--radius);
+}
+
+.qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}

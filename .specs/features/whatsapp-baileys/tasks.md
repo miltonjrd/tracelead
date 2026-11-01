@@ -293,9 +293,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Test "tela de conexão mostra cada estado" passes
-- [ ] Gate check passes: `npm test`
-- [ ] Test count: 49 tests pass
+- [x] Test "tela de conexão mostra cada estado" passes
+- [x] Gate check passes: `npm test`
+- [x] Test count: 49 tests pass
 
 **Tests**: unit
 **Gate**: quick
