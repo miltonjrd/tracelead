@@ -188,9 +188,9 @@ T10 → T11 → T12 → T13 → T14 → T15
 
 **Done when**:
 
-- [ ] Type-checks against the `SocketFactory` type from T5
-- [ ] Gate check passes: `npm run build && npm run typecheck && npm test`
-- [ ] Test count: 41 tests pass
+- [x] Type-checks against the `SocketFactory` type from T5
+- [x] Gate check passes: `npm run build && npm run typecheck && npm test`
+- [x] Test count: 41 tests pass
 
 **Tests**: none
 **Gate**: build
