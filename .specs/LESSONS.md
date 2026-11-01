@@ -32,6 +32,12 @@ Seen once or not yet corroborated. Tracked, not trusted.
 - evidence: tasks.md C28-C30 (spec)
 - last seen: 2026-11-01T00:54:49Z
 
+### L-004 - Test a time-window limit at the exact boundary and one millisecond past it, not only a day on each side.
+- signal: `weak_test` · recurrence: 1 feature(s) · scope: `exports` · harmful: 0
+- features: export-braid
+- evidence: verification.md C7 (exportBraid.test.ts) (exports)
+- last seen: 2026-11-01T01:42:40Z
+
 ## Quarantined (failed when applied - ignore)
 
 A confirmed lesson that recurred alongside failure. Kept for the maintainer to review.

@@ -3,7 +3,7 @@
   "promote_threshold": 2,
   "window_days": 45,
   "quarantine_threshold": 2,
-  "next_id": 4,
+  "next_id": 5,
   "lessons": [
     {
       "id": "L-001",
@@ -58,6 +58,24 @@
       ],
       "created": "2026-11-01T00:54:49Z",
       "last_seen": "2026-11-01T00:54:49Z"
+    },
+    {
+      "id": "L-004",
+      "key": "weak_test::test a time window limit at the exact boundary and one millisecond past it not only a day on each side",
+      "text": "Test a time-window limit at the exact boundary and one millisecond past it, not only a day on each side.",
+      "signal": "weak_test",
+      "scope": "exports",
+      "status": "candidate",
+      "features": [
+        "export-braid"
+      ],
+      "recurrence": 1,
+      "harmful": 0,
+      "evidence": [
+        "verification.md C7 (exportBraid.test.ts) (exports)"
+      ],
+      "created": "2026-11-01T01:42:40Z",
+      "last_seen": "2026-11-01T01:42:40Z"
     }
   ]
 }
