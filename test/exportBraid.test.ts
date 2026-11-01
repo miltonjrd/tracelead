@@ -5,7 +5,7 @@ import Database from 'better-sqlite3';
 import { openDb, type Db } from '../src/db/client.js';
 import { clicks, contacts, exports, sales, type Client } from '../src/db/schema.js';
 import { createClient } from '../src/services/accounts.js';
-import { createExportFile, exportFileCsv } from '../src/services/exports.js';
+import { createExportFile, exportFileCsv, exportStats } from '../src/services/exports.js';
 import { DAY_MS } from '../src/lib/time.js';
 import { form, login, setup } from './helpers.js';
 
@@ -62,9 +62,9 @@ interface Ids {
 }
 
 /** A contact (and, for "venda", its sale) whose click happened `ageDays` before NOW. */
-async function seed(db: Db, client: Client, ids: Ids, opts: { ageDays?: number; sale?: boolean; now?: number } = {}) {
+async function seed(db: Db, client: Client, ids: Ids, opts: { ageDays?: number; extraMs?: number; sale?: boolean; now?: number } = {}) {
   const n = ++seq;
-  const clickAt = (opts.now ?? NOW) - (opts.ageDays ?? 1) * DAY_MS;
+  const clickAt = (opts.now ?? NOW) - (opts.ageDays ?? 1) * DAY_MS - (opts.extraMs ?? 0);
   const [click] = await db
     .insert(clicks)
     .values({
@@ -228,6 +228,14 @@ test('gbraid antigo fica fora do arquivo e conta como fora do prazo', async () =
   const gerar = await ctx.app.inject({ method: 'POST', url: `/admin/c/${ctx.client.id}/exportacoes`, ...form(cookie, { tipo: 'lead' }) });
   assert.match(gerar.headers.location as string, /ok=vazio/);
   assert.equal((await exported(ctx.db)).length, 0);
+
+  // The limit itself: "no máximo 90 dias" includes day 90, "mais de 90 dias" starts 1 ms later.
+  const { db, client } = await fresh();
+  const noLimite = await seed(db, client, { gbraid: 'GB-90' }, { ageDays: 90 });
+  await seed(db, client, { gbraid: 'GB-90-MAIS-1MS' }, { ageDays: 90, extraMs: 1 });
+  assert.deepEqual(exportStats(db, client.id, NOW).lead, { prontos: 1, foraDoPrazo: 1 });
+  assert.equal(createExportFile(db, client, 'lead', NOW)?.linhas, 1);
+  assert.deepEqual((await exported(db)).map((r) => [r.referenciaId, r.gbraid]), [[noLimite.contact.id, 'GB-90']]);
 });
 
 test('aviso aparece para anúncio sem identificador', async () => {
