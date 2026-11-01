@@ -23,6 +23,7 @@ import {
   salesPage,
   systemPage,
 } from '../views/admin.js';
+import type { WhatsAppSessions } from '../services/whatsappSessions.js';
 import { flash, page } from '../views/layout.js';
 import { requireRole } from './auth.js';
 
@@ -43,12 +44,13 @@ const MESSAGES: Record<string, string> = {
   importado: 'Arquivo marcado como importado.',
   job: 'Concluído. Veja o resultado na tabela.',
   jobErro: 'Falhou. Veja o detalhe na tabela.',
+  whatsappDesconectado: 'WhatsApp desconectado.',
 };
 
 const SIXTY_DAYS = 60 * DAY_MS;
 
-export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: Config; fetchImpl?: FetchLike }) {
-  const { db, config } = opts;
+export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: Config; sessions: WhatsAppSessions; fetchImpl?: FetchLike }) {
+  const { db, config, sessions } = opts;
   app.addHook('preHandler', requireRole('admin'));
 
   async function render(req: Req, reply: FastifyReply, client: Client, section: Section, title: string, body: SafeHtml) {
@@ -215,11 +217,19 @@ export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: 
       baseUrl: config.baseUrl,
       metaConfigured: { appSecret: Boolean(config.meta.appSecret), verifyToken: Boolean(config.meta.verifyToken) },
       googleAdsConfigured: googleAdsConfigured(config),
+      whatsapp: sessions.status(client.id),
       backups: await recentRuns(db, 'backup', null),
       spendRuns: await recentRuns(db, 'ad_spend', client.id),
       msg: messages(req),
     });
     return render(req, reply, client, 'sistema', 'Sistema', body);
+  });
+
+  app.post('/admin/c/:cid/sistema/whatsapp/desconectar', async (req: Req, reply) => {
+    const client = await loadClient(req, reply);
+    if (!client) return;
+    await sessions.disconnect(client.id);
+    return reply.redirect(`/admin/c/${client.id}/sistema?ok=whatsappDesconectado`, 303);
   });
 
   app.post('/admin/c/:cid/sistema/backup', async (req: Req, reply) => {

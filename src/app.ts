@@ -73,7 +73,7 @@ export async function buildApp({ config, db, sessions, logger = false, fetchImpl
   await app.register(trackingRoutes, { db, config });
   await app.register(authRoutes, { db, config });
   await app.register(panelRoutes, { db, sessions });
-  await app.register(adminRoutes, { db, config, fetchImpl });
+  await app.register(adminRoutes, { db, config, sessions, fetchImpl });
 
   return app;
 }

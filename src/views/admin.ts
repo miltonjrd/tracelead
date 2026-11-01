@@ -3,6 +3,7 @@ import { centsToInput, formatMoney, formatPhone } from '../lib/format.js';
 import { html, type SafeHtml } from '../lib/html.js';
 import { addDays, formatDateBr, localDateTime } from '../lib/time.js';
 import type { WeeklyReport } from '../services/report.js';
+import type { SessionStatus } from '../services/whatsappSessions.js';
 import { ORIGEM_LABEL } from './labels.js';
 import { ORIGENS } from '../db/schema.js';
 
@@ -248,11 +249,35 @@ function runsTable(runs: RunRow[], client: Client): SafeHtml {
   </table></div>`;
 }
 
+function whatsappBaileysCard(base: string, status: SessionStatus): SafeHtml {
+  const label: Record<SessionStatus['state'], SafeHtml> = {
+    conectado: html`<span class="badge badge-ok">Conectado</span>${status.state === 'conectado' && status.phone ? html` ${formatPhone(status.phone)}` : ''}`,
+    conectando: html`<span class="badge badge-warn">Conectando</span>`,
+    aguardando_qr: html`<span class="badge badge-warn">Aguardando o QR code ser escaneado</span>`,
+    reconectando: html`<span class="badge badge-warn">Reconectando</span>`,
+    qr_expirado: html`<span class="badge badge-error">QR expirado</span>`,
+    desconectado_logout: html`<span class="badge badge-error">Desconectado pelo celular</span> A loja precisa escanear o QR code de novo.`,
+    desconectado: html`<span class="badge badge-error">Desconectado</span>`,
+  };
+  const canDisconnect = status.state !== 'desconectado' && status.state !== 'desconectado_logout';
+  return html`<section class="card">
+    <div class="contact-head">
+      <h3>WhatsApp (Baileys)</h3>
+      ${canDisconnect ? html`<form method="post" action="${base}/whatsapp/desconectar"><button class="btn btn-secondary btn-small" type="submit">Desconectar</button></form>` : ''}
+    </div>
+    <dl class="facts">
+      <div><dt>Conexão</dt><dd>${label[status.state]}</dd></div>
+    </dl>
+    <p class="small muted">A loja conecta pelo QR code em <code>/painel/whatsapp</code>.</p>
+  </section>`;
+}
+
 export function systemPage(opts: {
   client: Client;
   baseUrl: string;
   metaConfigured: { appSecret: boolean; verifyToken: boolean };
   googleAdsConfigured: boolean;
+  whatsapp: SessionStatus;
   backups: RunRow[];
   spendRuns: RunRow[];
   msg?: SafeHtml | '';
@@ -269,16 +294,18 @@ export function systemPage(opts: {
       <pre class="code">${snippet}</pre>
     </section>
 
-    <section class="card">
-      <h3>WhatsApp (Cloud API)</h3>
-      <dl class="facts">
-        <div><dt>URL de callback do webhook</dt><dd><code>${baseUrl}/webhook</code></dd></div>
-        <div><dt>Verify token (META_VERIFY_TOKEN)</dt><dd>${yesNo(opts.metaConfigured.verifyToken)}</dd></div>
-        <div><dt>App secret (META_APP_SECRET)</dt><dd>${yesNo(opts.metaConfigured.appSecret)}</dd></div>
-        <div><dt>Phone number ID deste cliente</dt><dd>${client.whatsappPhoneNumberId ? html`<code>${client.whatsappPhoneNumberId}</code>` : yesNo(false)}</dd></div>
-      </dl>
-      <p class="small muted">No app da Meta, assine o campo <code>messages</code> do webhook.</p>
-    </section>
+    ${client.whatsappMode === 'cloud'
+      ? html`<section class="card">
+          <h3>WhatsApp (Cloud API)</h3>
+          <dl class="facts">
+            <div><dt>URL de callback do webhook</dt><dd><code>${baseUrl}/webhook</code></dd></div>
+            <div><dt>Verify token (META_VERIFY_TOKEN)</dt><dd>${yesNo(opts.metaConfigured.verifyToken)}</dd></div>
+            <div><dt>App secret (META_APP_SECRET)</dt><dd>${yesNo(opts.metaConfigured.appSecret)}</dd></div>
+            <div><dt>Phone number ID deste cliente</dt><dd>${client.whatsappPhoneNumberId ? html`<code>${client.whatsappPhoneNumberId}</code>` : yesNo(false)}</dd></div>
+          </dl>
+          <p class="small muted">No app da Meta, assine o campo <code>messages</code> do webhook.</p>
+        </section>`
+      : whatsappBaileysCard(base, opts.whatsapp)}
 
     <section class="card">
       <div class="contact-head">
