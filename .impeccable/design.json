@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-02T00:00:00Z",
+  "title": "Design System: TraceLead",
+  "extensions": {
+    "colorMeta": {
+      "ledger-green": { "role": "primary", "displayName": "Verde de Caderno", "canonical": "#15803d", "tonalRamp": ["#052e16","#14532d","#116632","#15803d","#22a455","#4ade80","#bbf7d0","#e6f4ea"] },
+      "canvas": { "role": "neutral", "displayName": "Canvas Esverdeado", "canonical": "#f6f7f5", "tonalRamp": ["#1c1f1d","#3a3f3b","#5f665f","#8a918a","#b5bab4","#dde1dc","#eef0ec","#f6f7f5"] }
+    },
+    "typographyMeta": {
+      "title": { "displayName": "Title", "purpose": "Título de página." },
+      "figure": { "displayName": "Figure", "purpose": "Valores nos blocos de resumo, tabulares." }
+    },
+    "shadows": [
+      { "name": "ambient", "value": "0 1px 2px rgb(0 0 0 / 0.06)", "purpose": "Única sombra: cartões e aba ativa do controle segmentado." }
+    ],
+    "motion": [],
+    "breakpoints": [
+      { "name": "shell", "value": "760px" },
+      { "name": "tiles", "value": "720px" }
+    ]
+  },
+  "components": [
+    { "name": "Primary Button", "kind": "button", "refersTo": "button-primary", "description": "Ação principal.", "html": "<button class=\"ds-btn-primary\">Vendeu</button>", "css": ".ds-btn-primary{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:10px;border:1px solid transparent;background:#15803d;color:#fff;font:600 16px Roboto,system-ui,sans-serif;cursor:pointer}.ds-btn-primary:hover{background:#116632}.ds-btn-primary:focus-visible{outline:3px solid rgb(21 128 61 / .45);outline-offset:2px}" },
+    { "name": "Secondary Button", "kind": "button", "refersTo": "button-secondary", "description": "Ação secundária.", "html": "<button class=\"ds-btn-secondary\">Não comprou</button>", "css": ".ds-btn-secondary{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:0 18px;border-radius:10px;border:1px solid #dde1dc;background:#eef0ec;color:#1c1f1d;font:600 16px Roboto,system-ui,sans-serif;cursor:pointer}.ds-btn-secondary:focus-visible{outline:3px solid rgb(21 128 61 / .45);outline-offset:2px}" },
+    { "name": "Input", "kind": "input", "refersTo": "input", "description": "Campo de texto.", "html": "<input class=\"ds-input\" placeholder=\"Valor da venda\">", "css": ".ds-input{min-height:44px;padding:0 12px;border:1px solid #dde1dc;border-radius:10px;background:#fff;color:#1c1f1d;font:16px Roboto,system-ui,sans-serif}.ds-input:focus-visible{outline:3px solid rgb(21 128 61 / .45);outline-offset:2px}" },
+    { "name": "Badge", "kind": "chip", "refersTo": "badge", "description": "Origem ou estado.", "html": "<span class=\"ds-badge\">anúncio</span>", "css": ".ds-badge{display:inline-block;padding:2px 8px;border-radius:999px;font:600 12px Roboto,system-ui,sans-serif;background:#e6f4ea;color:#14532d}" },
+    { "name": "Card", "kind": "card", "refersTo": "card", "description": "Contêiner de contato.", "html": "<div class=\"ds-card\"><strong>Maria</strong><p class=\"ds-meta\">Hoje, 14:32</p></div>", "css": ".ds-card{background:#fff;border:1px solid #dde1dc;border-radius:12px;box-shadow:0 1px 2px rgb(0 0 0 / .06);padding:14px 16px;font-family:Roboto,system-ui,sans-serif;color:#1c1f1d}.ds-meta{color:#5f665f;font-size:13.6px;margin:4px 0 0}" }
+  ],
+  "narrative": {
+    "northStar": "O Caderno de Vendas",
+    "overview": "O TraceLead parece uma anotação de balcão bem feita: papel claro, linhas finas, um único verde que marca o que foi vendido.",
+    "keyCharacteristics": ["Tema claro fixo","Um único acento verde","Superfícies brancas separadas por linha fina","Alvos de toque de 44px","Números tabulares"],
+    "rules": [
+      { "name": "A Regra do Verde Único", "body": "O verde marca ação e estado ativo; nunca decoração.", "section": "colors" },
+      { "name": "A Regra do Plano", "body": "Superfícies não levantam em hover nem em repouso.", "section": "elevation" }
+    ],
+    "dos": ["Manter o tema claro fixo","Usar o verde só para ação primária e estado ativo","Garantir 44px nos alvos de toque primários"],
+    "donts": ["Usar gradientes ou ornamento de dashboard SaaS genérico","Copiar a identidade do WhatsApp","Criar modo escuro"]
+  }
+}
