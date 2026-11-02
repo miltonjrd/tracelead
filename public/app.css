@@ -29,6 +29,7 @@
   --text: #1c1f1d;
   --muted: #5f665f;
   --border: #dde1dc;
+  --control-border: #7f867f; /* 3:1+ against white and canvas (WCAG 1.4.11) */
   --primary: #15803d;
   --primary-hover: #116632;
   --primary-text: #ffffff;
@@ -115,6 +116,9 @@ pre {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
   font-size: 1.15rem;
   color: var(--text);
@@ -123,7 +127,7 @@ pre {
 }
 
 .brand-solo {
-  display: block;
+  display: flex;
   padding: 0;
   margin-bottom: 16px;
 }
@@ -303,8 +307,8 @@ section.card + section.card {
 
 .actions {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  grid-template-columns: 3fr 2fr;
+  gap: 12px;
   align-items: start;
 }
 
@@ -359,10 +363,32 @@ details.sale[open] > summary {
   flex: 1 1 140px;
 }
 
-.origem {
-  margin-top: 12px;
-  padding-top: 12px;
+.origem-edit {
+  margin-top: 8px;
   border-top: 1px solid var(--border);
+}
+
+.origem-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  color: var(--primary);
+  font-size: 0.9rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+.origem-summary::-webkit-details-marker {
+  display: none;
+}
+
+.origem-summary:hover {
+  text-decoration: underline;
+}
+
+.origem {
+  padding-bottom: 4px;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -389,6 +415,10 @@ details.sale[open] > summary {
   user-select: none;
 }
 
+.btn:active:not(:disabled) {
+  filter: brightness(0.93);
+}
+
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -406,7 +436,7 @@ details.sale[open] > summary {
 .btn-secondary {
   background: var(--surface-2);
   color: var(--text);
-  border-color: var(--border);
+  border-color: var(--control-border);
 }
 
 .btn-danger {
@@ -422,9 +452,12 @@ details.sale[open] > summary {
 }
 
 .btn-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   background: none;
   border: 0;
-  padding: 6px 0;
+  padding: 0 8px;
   color: var(--primary);
   font: inherit;
   cursor: pointer;
@@ -442,7 +475,7 @@ select {
   font: inherit;
   color: var(--text);
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--control-border);
   border-radius: 10px;
   min-height: 44px;
   padding: 0 12px;
@@ -451,8 +484,11 @@ select {
 
 input:focus-visible,
 select:focus-visible,
+a:focus-visible,
 .btn:focus-visible,
-summary:focus-visible {
+.btn-link:focus-visible,
+summary:focus-visible,
+.aviso:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--primary) 45%, transparent);
   outline-offset: 2px;
 }
@@ -501,7 +537,7 @@ summary:focus-visible {
 }
 
 .status-no {
-  color: var(--muted);
+  color: var(--text);
 }
 
 .flash {
@@ -716,4 +752,190 @@ tbody tr:last-child td {
   display: block;
   width: 100%;
   height: auto;
+}
+
+/* Header connection chip: the product stops silently if WhatsApp drops, so it is always visible. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.chip-ok {
+  background: var(--ok-bg);
+  color: var(--ok-text);
+}
+
+.chip-warn {
+  background: var(--warn-bg);
+  color: var(--warn-text);
+}
+
+.chip-error {
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.aviso:focus-visible {
+  outline-offset: 2px;
+}
+
+/* Sale amount: the "R$" sits inside the field so "150" reads as money. */
+.money {
+  position: relative;
+  display: flex;
+  flex: 1 1 140px;
+}
+
+.money input {
+  flex: 1;
+  width: 100%;
+  padding-left: 40px;
+  font-variant-numeric: tabular-nums;
+}
+
+.money-sign {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.sale-form .btn-link {
+  justify-self: start;
+}
+
+/* The one authored moment: the card that was just marked lands in its new list. */
+@keyframes moved-in {
+  from {
+    opacity: 0.35;
+    transform: translateY(-10px);
+    background: var(--ok-bg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    background: var(--surface);
+  }
+}
+
+.card.moved {
+  animation: moved-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card.moved {
+    animation: none;
+  }
+}
+
+/* Toast: fixed so a confirmation is seen from anywhere in a long list. */
+.aviso {
+  position: fixed;
+  left: 16px;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  max-width: 480px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid currentColor;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 0.12);
+}
+
+.aviso[hidden] {
+  display: none;
+}
+
+.aviso-undo {
+  color: inherit;
+  font-weight: 600;
+}
+
+.expiry {
+  color: var(--warn-text);
+  font-weight: 600;
+}
+
+.qr-hint {
+  display: none;
+  background: var(--warn-bg);
+  color: var(--warn-text);
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 12px 0 0;
+}
+
+@media (pointer: coarse) and (max-width: 900px) {
+  .qr-hint {
+    display: block;
+  }
+}
+
+/* The day's ledger: one ruled line per marked contact, amounts in a tabular column, a double rule above the total. */
+.ledger {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.ledger-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 4px 12px;
+  padding: 2px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ledger-who {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ledger-val {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ledger-error {
+  grid-column: 1 / -1;
+  margin: 0 0 8px;
+}
+
+.ledger-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 3px double var(--control-border);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.ledger-row.moved {
+  animation: moved-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ledger-row.moved {
+    animation: none;
+  }
 }

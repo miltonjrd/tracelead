@@ -11,7 +11,7 @@ export interface PanelRow {
 }
 
 // Open contacts stay on the client's list this long, so a missed day can still be marked.
-const OPEN_WINDOW_MS = 7 * DAY_MS;
+export const OPEN_WINDOW_MS = 7 * DAY_MS;
 
 async function withLastSales(db: Db, rows: Contact[]): Promise<PanelRow[]> {
   if (!rows.length) return [];
@@ -49,6 +49,12 @@ export async function listPanel(db: Db, client: Client, now = Date.now()) {
     pendentes: await withLastSales(db, pendentes),
     resolvidos: await withLastSales(db, resolvidos),
   };
+}
+
+/** True once the store has ever received a contact; tells a first-run list from a finished one. */
+export async function hasAnyContact(db: Db, clientId: number): Promise<boolean> {
+  const row = await db.select({ id: contacts.id }).from(contacts).where(eq(contacts.clientId, clientId)).limit(1);
+  return row.length > 0;
 }
 
 export async function getPanelRow(db: Db, clientId: number, contactId: number): Promise<PanelRow | null> {

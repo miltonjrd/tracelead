@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { eq } from 'drizzle-orm';
-import { clicks, contacts, sales } from '../src/db/schema.js';
+import { clicks, clients, contacts, sales } from '../src/db/schema.js';
 import { fromLocal, localDate } from '../src/lib/time.js';
 import { handleInboundMessage } from '../src/services/tracking.js';
 import { form, login, postWebhook, setup, waPayload } from './helpers.js';
@@ -185,4 +185,67 @@ test('health e backup', async () => {
   assert.match(page.body, /tracelead-.+\.db \(\d+ KB\)/);
   assert.match(page.body, new RegExp(`data-client=&quot;${ctx.client.publicKey}&quot;`), 'snippet exibido como texto');
   assert.match(page.body, /aria-current="page"/);
+});
+
+test('marcar venda devolve as duas listas, contagens e aviso para o leitor de tela', async () => {
+  const ctx = await setup();
+  const contact = await clickAndMessage(ctx);
+  const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
+  const hx = { 'hx-request': 'true' };
+
+  const sold = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/venda`, ...form(cookie, { valor: '150' }, hx) });
+  assert.equal(sold.headers['hx-retarget'], '#painel-lista');
+  assert.equal(sold.headers['hx-reswap'], 'outerHTML');
+  assert.match(sold.body, /id="painel-lista"/);
+  assert.match(sold.body, /Para marcar <span class="count">0<\/span>/);
+  assert.match(sold.body, /Marcados hoje <span class="count">1<\/span>/);
+  assert.match(sold.body, /class="ledger-row moved"/);
+  assert.match(sold.body, /Total do dia · 1 venda/);
+  assert.match(sold.body, /hx-swap-oob="true"[^>]*role="status"[\s\S]*Venda de R\$\s150,00 registrada[\s\S]*aviso-undo/);
+
+  const undo = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/reabrir`, ...form(cookie, {}, hx) });
+  assert.match(undo.body, /Para marcar <span class="count">1<\/span>/);
+
+  // A rejected amount only re-renders the card, so the typed form stays where it is.
+  const bad = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/venda`, ...form(cookie, { valor: 'abc' }, hx) });
+  assert.equal(bad.headers['hx-retarget'], undefined);
+  assert.match(bad.body, /Digite o valor/);
+});
+
+test('painel avisa quando o WhatsApp do cliente baileys está desconectado', async () => {
+  const ctx = await setup();
+  await ctx.db.update(clients).set({ whatsappMode: 'baileys' }).where(eq(clients.id, ctx.client.id));
+  const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
+  const res = await ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
+  assert.match(res.body, /chip-error[^>]*>WhatsApp desconectado/);
+  assert.match(res.body, /Conecte o WhatsApp para começar/);
+});
+
+test('origem fica recolhida no cartão e o botão de salvar tem rótulo para o estado pendente', async () => {
+  const ctx = await setup();
+  const contact = await clickAndMessage(ctx);
+  await ctx.db.update(clicks).set({ gclid: null }).where(eq(clicks.id, contact.clickId!));
+  await ctx.db.update(contacts).set({ clickId: null }).where(eq(contacts.id, contact.id));
+  const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
+  const res = await ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
+  assert.match(res.body, /<details class="origem-edit">\s*<summary class="origem-summary">Alterar origem/);
+});
+
+test('painel mostra primeira vez, aviso de expiração e total do dia', async () => {
+  const ctx = await setup();
+  const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
+  const empty = await ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
+  assert.match(empty.body, /Nenhum contato ainda/);
+  assert.doesNotMatch(empty.body, /Tudo marcado/);
+
+  const contact = await clickAndMessage(ctx);
+  const old = Date.now() - 6 * 24 * 60 * 60 * 1000 - 3_600_000;
+  await ctx.db.update(contacts).set({ firstMessageAt: old, lastMessageAt: old }).where(eq(contacts.id, contact.id));
+  const aging = await ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
+  assert.match(aging.body, /Sai da lista em 1 dias|Sai da lista hoje/);
+
+  const sold = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/venda`, ...form(cookie, { valor: '200' }, { 'hx-request': 'true' }) });
+  assert.match(sold.body, /Total do dia · 1 venda<\/span><strong class="num">R\$\s200,00/);
+  const done = await ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
+  assert.match(done.body, /Tudo marcado/);
 });

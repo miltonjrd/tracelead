@@ -31,6 +31,7 @@ export function whatsappStatus(client: Client, status: SessionStatus, qrSvg?: st
         break;
       case 'aguardando_qr':
         body = html`<p>No celular, abra o WhatsApp, vá em <strong>Aparelhos conectados</strong>, toque em <strong>Conectar um aparelho</strong> e aponte a câmera para o código.</p>
+          <p class="qr-hint">Está lendo isto no celular? Abra este painel no computador ou em outro celular para escanear o código com a câmera do WhatsApp.</p>
           <div class="qr" role="img" aria-label="QR code para conectar o WhatsApp">${qrSvg ? new SafeHtml(qrSvg) : ''}</div>`;
         break;
       case 'conectando':

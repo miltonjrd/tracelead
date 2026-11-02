@@ -21,7 +21,7 @@ export function page(opts: { title: string; body: SafeHtml; user?: SessionUser |
 ${user || nav
   ? html`<div class="shell">
   <aside class="sidebar">
-    <a class="brand" href="/">TraceLead</a>
+    <a class="brand" href="/"><img src="${assetUrl('icon.svg')}" alt="" width="24" height="24">TraceLead</a>
     ${nav ?? ''}
     ${user
       ? html`<form method="post" action="/logout" class="logout">
@@ -32,7 +32,7 @@ ${user || nav
   </aside>
   <main class="container">${body}</main>
 </div>`
-  : html`<main class="container"><a class="brand brand-solo" href="/">TraceLead</a>${body}</main>`}
+  : html`<main class="container"><a class="brand brand-solo" href="/"><img src="${assetUrl('icon.svg')}" alt="" width="24" height="24">TraceLead</a>${body}</main>`}
 </body>
 </html>`}`;
 }
