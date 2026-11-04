@@ -1,10 +1,24 @@
 import type { Client } from '../db/schema.js';
 import { formatPhone } from '../lib/format.js';
 import { html, SafeHtml } from '../lib/html.js';
+import type { HealthReason } from '../services/connectionHealth.js';
 import type { SessionStatus } from '../services/whatsappSessions.js';
 import { flash } from './layout.js';
 
 const POLL_STATES = new Set<SessionStatus['state']>(['conectando', 'aguardando_qr', 'reconectando']);
+
+/** Explains why a "connected" WhatsApp looks deaf, and what to do about it. */
+export function healthNote(reasons: HealthReason[] | undefined): SafeHtml | '' {
+  if (!reasons?.length) return '';
+  const lines = reasons.map((r) =>
+    r.kind === 'silencio'
+      ? html`<li>Nenhuma mensagem chegou há ${r.hours} h, mas houve ${r.clicks} ${r.clicks === 1 ? 'clique' : 'cliques'} no WhatsApp nesse período.</li>`
+      : html`<li>${r.clicks} cliques no WhatsApp nas últimas 24 h e nenhuma mensagem recebida.</li>`,
+  );
+  return html`<div class="flash flash-erro" role="alert"><strong>Confira a conexão.</strong> O WhatsApp aparece como conectado, mas pode ter parado de receber.
+    <ul>${lines}</ul>
+    Se alguém já mandou mensagem e ela não apareceu, desconecte e conecte de novo escaneando o QR code.</div>`;
+}
 
 function connectButton(label: string): SafeHtml {
   return html`<form method="post" action="/painel/whatsapp/conectar" hx-post="/painel/whatsapp/conectar" hx-target="#wa-status" hx-swap="outerHTML">
@@ -13,7 +27,7 @@ function connectButton(label: string): SafeHtml {
 }
 
 /** Fragment HTMX swaps in place: refreshes itself every 2 s while a connection is in progress. */
-export function whatsappStatus(client: Client, status: SessionStatus, qrSvg?: string, error?: string): SafeHtml {
+export function whatsappStatus(client: Client, status: SessionStatus, qrSvg?: string, error?: string, health?: HealthReason[]): SafeHtml {
   const poll = POLL_STATES.has(status.state)
     ? html` hx-get="/painel/whatsapp/estado" hx-trigger="every 2s" hx-swap="outerHTML"`
     : '';
@@ -24,7 +38,7 @@ export function whatsappStatus(client: Client, status: SessionStatus, qrSvg?: st
   } else {
     switch (status.state) {
       case 'conectado':
-        body = html`<p><span class="badge badge-ok">Conectado</span> ${status.phone ? formatPhone(status.phone) : ''}</p>
+        body = html`${healthNote(health)}<p><span class="badge badge-ok">Conectado</span> ${status.phone ? formatPhone(status.phone) : ''}</p>
           <form method="post" action="/painel/whatsapp/desconectar" hx-post="/painel/whatsapp/desconectar" hx-target="#wa-status" hx-swap="outerHTML" hx-confirm="Desconectar o WhatsApp? Novos contatos deixam de chegar.">
             <button class="btn btn-secondary" type="submit">Desconectar</button>
           </form>`;
@@ -57,12 +71,12 @@ export function whatsappStatus(client: Client, status: SessionStatus, qrSvg?: st
   return html`<div id="wa-status"${poll}>${flash('erro', error)}${body}</div>`;
 }
 
-export function whatsappPage(client: Client, status: SessionStatus, qrSvg?: string): SafeHtml {
+export function whatsappPage(client: Client, status: SessionStatus, qrSvg?: string, health?: HealthReason[]): SafeHtml {
   return html`<section class="card">
     <div class="page-head">
       <h1>WhatsApp</h1>
       <a class="btn-link" href="/painel">Contatos</a>
     </div>
-    ${whatsappStatus(client, status, qrSvg)}
+    ${whatsappStatus(client, status, qrSvg, undefined, health)}
   </section>`;
 }

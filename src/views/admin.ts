@@ -3,7 +3,9 @@ import { centsToInput, formatMoney, formatPhone } from '../lib/format.js';
 import { html, type SafeHtml } from '../lib/html.js';
 import { addDays, formatDateBr, localDateTime } from '../lib/time.js';
 import type { WeeklyReport } from '../services/report.js';
+import type { HealthReason } from '../services/connectionHealth.js';
 import type { SessionStatus } from '../services/whatsappSessions.js';
+import { healthNote } from './whatsapp.js';
 import { ORIGEM_LABEL } from './labels.js';
 import { ORIGENS } from '../db/schema.js';
 
@@ -248,7 +250,7 @@ function runsTable(runs: RunRow[], client: Client): SafeHtml {
   </table></div>`;
 }
 
-function whatsappBaileysCard(base: string, status: SessionStatus): SafeHtml {
+function whatsappBaileysCard(base: string, status: SessionStatus, health?: HealthReason[]): SafeHtml {
   const label: Record<SessionStatus['state'], SafeHtml> = {
     conectado: html`<span class="badge badge-ok">Conectado</span>${status.state === 'conectado' && status.phone ? html` ${formatPhone(status.phone)}` : ''}`,
     conectando: html`<span class="badge badge-warn">Conectando</span>`,
@@ -265,6 +267,7 @@ function whatsappBaileysCard(base: string, status: SessionStatus): SafeHtml {
       <h3>WhatsApp (Baileys)</h3>
       ${canDisconnect ? html`<form method="post" action="${base}/whatsapp/desconectar"><button class="btn btn-secondary btn-small" type="submit">Desconectar</button></form>` : ''}
     </div>
+    ${healthNote(health)}
     <dl class="facts">
       <div><dt>Conexão</dt><dd>${label[status.state]}</dd></div>
     </dl>
@@ -278,6 +281,7 @@ export function systemPage(opts: {
   metaConfigured: { appSecret: boolean; verifyToken: boolean };
   googleAdsConfigured: boolean;
   whatsapp: SessionStatus;
+  whatsappHealth?: HealthReason[];
   backups: RunRow[];
   spendRuns: RunRow[];
   msg?: SafeHtml | '';
@@ -305,7 +309,7 @@ export function systemPage(opts: {
           </dl>
           <p class="small muted">No app da Meta, assine o campo <code>messages</code> do webhook.</p>
         </section>`
-      : whatsappBaileysCard(base, opts.whatsapp)}
+      : whatsappBaileysCard(base, opts.whatsapp, opts.whatsappHealth)}
 
     <section class="card">
       <div class="contact-head">

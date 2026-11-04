@@ -4,6 +4,7 @@ import { html, type SafeHtml } from '../lib/html.js';
 import { localDate, localTime, formatDateBr } from '../lib/time.js';
 import { OPEN_WINDOW_MS, type PanelRow } from '../services/panel.js';
 import { DAY_MS } from '../lib/time.js';
+import type { HealthReason } from '../services/connectionHealth.js';
 import type { SessionStatus } from '../services/whatsappSessions.js';
 import { ORIGEM_LABEL, ORIGENS_MANUAIS } from './labels.js';
 
@@ -152,10 +153,11 @@ export function avisoRegion(message?: string, fresh = false, undoContactId?: num
 }
 
 /** Chip in the header: the whole product stops working silently if this connection drops. */
-function connectionChip(client: Client, status?: SessionStatus): SafeHtml | '' {
+function connectionChip(client: Client, status?: SessionStatus, health?: HealthReason[]): SafeHtml | '' {
   if (client.whatsappMode !== 'baileys' || !status) return '';
   switch (status.state) {
     case 'conectado':
+      if (health?.length) return html`<a class="chip chip-warn" href="/painel/whatsapp">WhatsApp sem receber? Confira</a>`;
       return html`<a class="chip chip-ok" href="/painel/whatsapp">WhatsApp conectado</a>`;
     case 'conectando':
     case 'reconectando':
@@ -172,13 +174,14 @@ export function panelPage(
   now: number,
   status?: SessionStatus,
   hasContacts = true,
+  health?: HealthReason[],
 ): SafeHtml {
   const off = client.whatsappMode === 'baileys' && !!status && status.state !== 'conectado';
   return html`<section>
     <div class="page-head">
       <h1>${client.name}</h1>
       <p class="muted">${formatDateBr(localDate(now, client.timezone))}</p>
-      ${connectionChip(client, status)}
+      ${connectionChip(client, status, health)}
     </div>
     ${off
       ? html`<p class="flash flash-erro" role="alert">O WhatsApp está desconectado, então novos contatos não chegam. <a href="/painel/whatsapp">Conectar o WhatsApp</a></p>`

@@ -18,6 +18,7 @@ import QRCode from 'qrcode';
 import { SessionLimitError, type WhatsAppSessions } from '../services/whatsappSessions.js';
 import { page } from '../views/layout.js';
 import { avisoRegion, contactCard, contactLists, ledgerRow, panelPage } from '../views/panel.js';
+import { connectionHealth } from '../services/connectionHealth.js';
 import { whatsappPage, whatsappStatus } from '../views/whatsapp.js';
 import { isHtmx, requireRole } from './auth.js';
 
@@ -37,26 +38,27 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
     const client = await currentClient(req);
     const now = Date.now();
     const data = await listPanel(db, client, now);
-    return reply.type('text/html').send(page({ title: 'Contatos', user: req.user, body: panelPage(data, client, now, sessions.status(client.id), await hasAnyContact(db, client.id)) }));
+    return reply.type('text/html').send(page({ title: 'Contatos', user: req.user, body: panelPage(data, client, now, sessions.status(client.id), await hasAnyContact(db, client.id), await connectionHealth(db, client, sessions.status(client.id), sessions.lastEventAt(client.id))) }));
   });
 
   /** Current connection state of the store's own client; the QR comes out as inline SVG. */
   async function connection(client: Client, error?: string) {
     const status = sessions.status(client.id);
     const qrSvg = status.state === 'aguardando_qr' ? await QRCode.toString(status.qr, { type: 'svg', margin: 0 }) : undefined;
-    return { status, qrSvg, error };
+    const health = await connectionHealth(db, client, status, sessions.lastEventAt(client.id));
+    return { status, qrSvg, error, health };
   }
 
   app.get('/painel/whatsapp', async (req, reply) => {
     const client = await currentClient(req);
-    const { status, qrSvg } = await connection(client);
-    return reply.type('text/html').send(page({ title: 'WhatsApp', user: req.user, body: whatsappPage(client, status, qrSvg) }));
+    const { status, qrSvg, health } = await connection(client);
+    return reply.type('text/html').send(page({ title: 'WhatsApp', user: req.user, body: whatsappPage(client, status, qrSvg, health) }));
   });
 
   app.get('/painel/whatsapp/estado', async (req, reply) => {
     const client = await currentClient(req);
-    const { status, qrSvg } = await connection(client);
-    return reply.type('text/html').send(whatsappStatus(client, status, qrSvg).value);
+    const { status, qrSvg, health } = await connection(client);
+    return reply.type('text/html').send(whatsappStatus(client, status, qrSvg, undefined, health).value);
   });
 
   function whatsappAction(path: string, run: (client: Client) => Promise<void>) {
@@ -70,9 +72,9 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
         error = err.message;
       }
       if (!isHtmx(req) && !error) return reply.redirect('/painel/whatsapp', 303);
-      const { status, qrSvg } = await connection(client, error);
-      if (isHtmx(req)) return reply.type('text/html').send(whatsappStatus(client, status, qrSvg, error).value);
-      return reply.type('text/html').send(page({ title: 'WhatsApp', user: req.user, body: whatsappPage(client, status, qrSvg) }));
+      const { status, qrSvg, health } = await connection(client, error);
+      if (isHtmx(req)) return reply.type('text/html').send(whatsappStatus(client, status, qrSvg, error, health).value);
+      return reply.type('text/html').send(page({ title: 'WhatsApp', user: req.user, body: whatsappPage(client, status, qrSvg, health) }));
     });
   }
   whatsappAction('/painel/whatsapp/conectar', (client) => sessions.connect(client.id));

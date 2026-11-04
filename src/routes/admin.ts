@@ -23,6 +23,7 @@ import {
   salesPage,
   systemPage,
 } from '../views/admin.js';
+import { connectionHealth } from '../services/connectionHealth.js';
 import type { WhatsAppSessions } from '../services/whatsappSessions.js';
 import { flash, page } from '../views/layout.js';
 import { requireRole } from './auth.js';
@@ -218,6 +219,7 @@ export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: 
       metaConfigured: { appSecret: Boolean(config.meta.appSecret), verifyToken: Boolean(config.meta.verifyToken) },
       googleAdsConfigured: googleAdsConfigured(config),
       whatsapp: sessions.status(client.id),
+      whatsappHealth: await connectionHealth(db, client, sessions.status(client.id), sessions.lastEventAt(client.id)),
       backups: await recentRuns(db, 'backup', null),
       spendRuns: await recentRuns(db, 'ad_spend', client.id),
       msg: messages(req),
