@@ -8,6 +8,7 @@ import {
   hasAnyContact,
   isOrigem,
   listPanel,
+  parsePanelQuery,
   markNotBought,
   markSold,
   PanelError,
@@ -34,10 +35,25 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
     return client;
   }
 
+  /** Search and page of the list the user is looking at; marks re-render it from the page's own URL. */
+  function listQuery(req: FastifyRequest) {
+    const current = req.headers['hx-current-url'];
+    if (typeof current === 'string') {
+      try {
+        const sp = new URL(current).searchParams;
+        return parsePanelQuery(sp.get('q'), sp.get('pagina'), sp.get('por'));
+      } catch {
+        /* fall through */
+      }
+    }
+    const query = req.query as Record<string, unknown>;
+    return parsePanelQuery(query?.q, query?.pagina, query?.por);
+  }
+
   app.get('/painel', async (req, reply) => {
     const client = await currentClient(req);
     const now = Date.now();
-    const data = await listPanel(db, client, now);
+    const data = await listPanel(db, client, now, listQuery(req));
     return reply.type('text/html').send(page({ title: 'Contatos', user: req.user, nav: panelNav('contatos'), body: panelPage(data, client, now, sessions.status(client.id), await hasAnyContact(db, client.id), await connectionHealth(db, client, sessions.status(client.id), sessions.lastEventAt(client.id))) }));
   });
 
@@ -101,7 +117,7 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
       if (opts.moves && !error) {
         // The mark moved the contact between lists: re-render both lists (and counts) and announce it.
         const now = Date.now();
-        const data = await listPanel(db, client, now);
+        const data = await listPanel(db, client, now, listQuery(req));
         const status = sessions.status(client.id);
         const off = client.whatsappMode === 'baileys' && status.state !== 'conectado';
         const lists = contactLists(data, client, now, { movedId: contactId, whatsappOff: off });

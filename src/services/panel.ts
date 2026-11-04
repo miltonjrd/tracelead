@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, ne } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, like, ne, or } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { contacts, ORIGENS, sales, type Client, type Contact, type Origem, type Sale } from '../db/schema.js';
 import { DAY_MS, fromLocal, localDate } from '../lib/time.js';
@@ -25,19 +25,50 @@ async function withLastSales(db: Db, rows: Contact[]): Promise<PanelRow[]> {
   return rows.map((contact) => ({ contact, lastSale: last.get(contact.id) ?? null }));
 }
 
-export async function listPanel(db: Db, client: Client, now = Date.now()) {
+export const PAGE_SIZES = [15, 30, 50, 100] as const;
+export const PAGE_SIZE = PAGE_SIZES[0];
+
+export interface PanelQuery {
+  q?: string;
+  page?: number;
+  size?: number;
+}
+
+/** Search text and page number from a request, tolerant of junk. */
+export function parsePanelQuery(q: unknown, page: unknown, size?: unknown): Required<PanelQuery> {
+  const n = Number(page);
+  const sz = Number(size);
+  return {
+    q: typeof q === 'string' ? q.trim().slice(0, 80) : '',
+    page: Number.isInteger(n) && n > 0 ? n : 1,
+    size: (PAGE_SIZES as readonly number[]).includes(sz) ? sz : PAGE_SIZE,
+  };
+}
+
+export async function listPanel(db: Db, client: Client, now = Date.now(), query: PanelQuery = {}) {
   const startOfToday = fromLocal(localDate(now, client.timezone), client.timezone);
+  const q = (query.q ?? '').trim();
+  const digits = q.replace(/\D/g, '');
+  const search = q
+    ? or(like(contacts.name, `%${q}%`), digits ? like(contacts.phone, `%${digits}%`) : undefined)
+    : undefined;
+  const open = and(
+    eq(contacts.clientId, client.id),
+    eq(contacts.status, 'aberto'),
+    gte(contacts.lastMessageAt, now - OPEN_WINDOW_MS),
+    search,
+  );
+  const [{ total }] = await db.select({ total: count() }).from(contacts).where(open);
+  const size = query.size ?? PAGE_SIZE;
+  const pages = Math.max(1, Math.ceil(total / size));
+  const page = Math.min(Math.max(1, query.page ?? 1), pages);
   const pendentes = await db
     .select()
     .from(contacts)
-    .where(
-      and(
-        eq(contacts.clientId, client.id),
-        eq(contacts.status, 'aberto'),
-        gte(contacts.lastMessageAt, now - OPEN_WINDOW_MS),
-      ),
-    )
-    .orderBy(desc(contacts.lastMessageAt));
+    .where(open)
+    .orderBy(desc(contacts.lastMessageAt))
+    .limit(size)
+    .offset((page - 1) * size);
   const resolvidos = await db
     .select()
     .from(contacts)
@@ -48,6 +79,11 @@ export async function listPanel(db: Db, client: Client, now = Date.now()) {
   return {
     pendentes: await withLastSales(db, pendentes),
     resolvidos: await withLastSales(db, resolvidos),
+    total,
+    page,
+    pages,
+    size,
+    q,
   };
 }
 

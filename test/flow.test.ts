@@ -249,3 +249,45 @@ test('painel mostra primeira vez, aviso de expiração e total do dia', async ()
   const done = await ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
   assert.match(done.body, /Tudo marcado/);
 });
+
+test('painel pesquisa por nome ou telefone e pagina a lista de contatos', async () => {
+  const ctx = await setup();
+  const now = Date.now();
+  await ctx.db.insert(contacts).values(
+    Array.from({ length: 25 }, (_, i) => ({
+      clientId: ctx.client.id,
+      phone: `+55119000000${String(i).padStart(2, '0')}`,
+      name: i === 3 ? 'Joaquina Silva' : `Cliente ${i}`,
+      firstMessageAt: now - i * 60_000,
+      lastMessageAt: now - i * 60_000,
+      origem: 'desconhecida' as const,
+      status: 'aberto' as const,
+      statusAt: now,
+    })),
+  );
+  const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
+  const get = (url: string) => ctx.app.inject({ method: 'GET', url, headers: { cookie } });
+
+  const p1 = await get('/painel');
+  assert.match(p1.body, /Contatos <span class="count">25<\/span>/);
+  assert.match(p1.body, /1 \/ 2/);
+  assert.equal((p1.body.match(/class="contact-row/g) ?? []).length, 15);
+
+  const p2 = await get('/painel?pagina=2');
+  assert.match(p2.body, /2 \/ 2/);
+  assert.equal((p2.body.match(/class="contact-row/g) ?? []).length, 10);
+
+  const big = await get('/painel?por=30');
+  assert.equal((big.body.match(/class="contact-row/g) ?? []).length, 25);
+  assert.doesNotMatch(big.body, /<a [^>]*aria-label="Próxima página"/);
+
+  const byName = await get('/painel?q=joaquina');
+  assert.equal((byName.body.match(/class="contact-row/g) ?? []).length, 1);
+  assert.doesNotMatch(byName.body, /class="pager"/);
+
+  const byPhone = await get('/painel?q=' + encodeURIComponent('(11) 9000-00024'));
+  assert.equal((byPhone.body.match(/class="contact-row/g) ?? []).length, 1);
+
+  const none = await get('/painel?q=zzz');
+  assert.match(none.body, /Nenhum contato encontrado/);
+});

@@ -1,8 +1,8 @@
 import type { Client } from '../db/schema.js';
 import { formatMoney, formatPhone } from '../lib/format.js';
-import { html, type SafeHtml } from '../lib/html.js';
+import { html, SafeHtml } from '../lib/html.js';
 import { addDays, localDate, localTime, formatDateBr } from '../lib/time.js';
-import { OPEN_WINDOW_MS, type PanelRow } from '../services/panel.js';
+import { OPEN_WINDOW_MS, PAGE_SIZE, PAGE_SIZES, type PanelRow } from '../services/panel.js';
 import { DAY_MS } from '../lib/time.js';
 import type { HealthReason } from '../services/connectionHealth.js';
 import type { SessionStatus } from '../services/whatsappSessions.js';
@@ -113,7 +113,7 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
   </tr>`;
 }
 
-export type PanelData = { pendentes: PanelRow[]; resolvidos: PanelRow[] };
+export type PanelData = { pendentes: PanelRow[]; resolvidos: PanelRow[]; total: number; page: number; pages: number; size: number; q: string };
 
 /** A marked contact is one ruled line of the day's ledger: who, what, how much, undo. */
 export function ledgerRow(row: PanelRow, client: Client, error?: string, moved = false): SafeHtml {
@@ -139,6 +139,55 @@ function dayTotal(resolvidos: PanelRow[], client: Client): SafeHtml | '' {
   return html`<li class="ledger-total"><span>Total do dia · ${sold.length} ${sold.length === 1 ? 'venda' : 'vendas'}</span><strong class="num">${formatMoney(total, client.currency)}</strong></li>`;
 }
 
+function listHref(data: PanelData, page: number): string {
+  const params = new URLSearchParams();
+  if (data.q) params.set('q', data.q);
+  if (page > 1) params.set('pagina', String(page));
+  if (data.size !== PAGE_SIZE) params.set('por', String(data.size));
+  const qs = params.toString();
+  return `/painel${qs ? `?${qs}` : ''}`;
+}
+
+const PAGER_ICONS = {
+  first: '<path d="M7 5v14"/><path d="m18 6-6 6 6 6"/>',
+  prev: '<path d="m15 18-6-6 6-6"/>',
+  next: '<path d="m9 18 6-6-6-6"/>',
+  last: '<path d="M17 5v14"/><path d="m6 6 6 6-6 6"/>',
+} as const;
+
+function pagerButton(kind: keyof typeof PAGER_ICONS, label: string, href: string | null): SafeHtml {
+  const icon = html`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${new SafeHtml(PAGER_ICONS[kind])}</svg>`;
+  return href
+    ? html`<a class="btn btn-secondary btn-icon" href="${href}" aria-label="${label}" title="${label}">${icon}</a>`
+    : html`<span class="btn btn-secondary btn-icon" aria-disabled="true" role="link" aria-label="${label}" title="${label}">${icon}</span>`;
+}
+
+/** Page-size picker and first / previous / next / last buttons; shown whenever there is anything to page. */
+function pagination(data: PanelData): SafeHtml | '' {
+  if (data.total <= PAGE_SIZE) return '';
+  const { page, pages } = data;
+  const from = (page - 1) * data.size + 1;
+  const to = Math.min(page * data.size, data.total);
+  return html`<div class="pager">
+    <form class="pager-size" method="get" action="/painel">
+      ${data.q ? html`<input type="hidden" name="q" value="${data.q}">` : ''}
+      <label for="por">Por página</label>
+      <select id="por" name="por" data-autosubmit>
+        ${PAGE_SIZES.map((n) => html`<option value="${n}"${n === data.size ? ' selected' : ''}>${n}</option>`)}
+      </select>
+      <noscript><button class="btn btn-secondary" type="submit">OK</button></noscript>
+    </form>
+    <span class="pager-range muted">${from}–${to} de ${data.total}</span>
+    <nav class="pager-nav" aria-label="Paginação">
+      ${pagerButton('first', 'Primeira página', page > 1 ? listHref(data, 1) : null)}
+      ${pagerButton('prev', 'Página anterior', page > 1 ? listHref(data, page - 1) : null)}
+      <span class="pager-page muted">${page} / ${pages}</span>
+      ${pagerButton('next', 'Próxima página', page < pages ? listHref(data, page + 1) : null)}
+      ${pagerButton('last', 'Última página', page < pages ? listHref(data, pages) : null)}
+    </nav>
+  </div>`;
+}
+
 /** The two lists share one swap target so a mark moves the contact and refreshes both counts. */
 export function contactLists(
   data: PanelData,
@@ -147,17 +196,19 @@ export function contactLists(
   opts: { movedId?: number; whatsappOff?: boolean; firstRun?: boolean } = {},
 ): SafeHtml {
   const card = (r: PanelRow) => contactCard(r, client, now, undefined, r.contact.id === opts.movedId);
-  const empty = opts.whatsappOff
+  const empty = data.q
+    ? html`<p class="empty">Nenhum contato encontrado para “${data.q}”.</p>`
+    : opts.whatsappOff
     ? html`<p class="empty">Conecte o WhatsApp para começar. Os contatos só chegam depois da conexão.</p>`
     : opts.firstRun
       ? html`<p class="empty">Nenhum contato ainda. Quando alguém clicar no anúncio e chamar no WhatsApp, ele aparece aqui. Marcar Vendeu ou Não comprou é o que devolve as vendas ao Google Ads.</p>`
       : html`<p class="empty">Tudo marcado. Novos contatos do WhatsApp aparecem aqui.</p>`;
   return html`<div id="painel-lista">
-    <h2 class="section-title">Contatos <span class="count">${data.pendentes.length}</span></h2>
+    <h2 class="section-title">Contatos <span class="count">${data.total}</span></h2>
     ${data.pendentes.length ? html`<table class="contacts">
       <thead><tr><th scope="col">Contato</th><th scope="col">Origem</th><th scope="col">Data de contato</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead>
       <tbody>${data.pendentes.map(card)}</tbody>
-    </table>` : empty}
+    </table>${pagination(data)}` : empty}
     ${data.resolvidos.length
       ? html`<h2 class="section-title">Marcados hoje <span class="count">${data.resolvidos.length}</span></h2>
           <ol class="ledger">${data.resolvidos.map((r) => ledgerRow(r, client, undefined, r.contact.id === opts.movedId))}${dayTotal(data.resolvidos, client)}</ol>`
@@ -212,6 +263,13 @@ export function panelPage(
     ${off && !connecting
       ? html`<p class="flash flash-erro" role="alert">O WhatsApp está desconectado, então novos contatos não chegam.</p>`
       : ''}
+    <form class="search" method="get" action="/painel" role="search">
+      <label class="sr-only" for="busca">Pesquisar contatos</label>
+      <input id="busca" type="search" name="q" value="${data.q}" placeholder="Pesquisar por nome ou telefone" autocomplete="off">
+      <button class="btn btn-secondary btn-icon" type="submit" aria-label="Pesquisar" title="Pesquisar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
+      ${data.size !== PAGE_SIZE ? html`<input type="hidden" name="por" value="${data.size}">` : ''}
+      ${data.q ? html`<a class="btn-link" href="/painel">Limpar</a>` : ''}
+    </form>
     ${avisoRegion()}
     ${contactLists(data, client, now, { whatsappOff: off, firstRun: !hasContacts })}
   </section>`;

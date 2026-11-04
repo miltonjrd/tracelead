@@ -7,6 +7,12 @@
     if (message && !window.confirm(message)) e.preventDefault();
   });
 
+  // Selects marked data-autosubmit apply as soon as they change.
+  document.addEventListener('change', function (e) {
+    var el = e.target;
+    if (el.matches && el.matches('select[data-autosubmit]') && el.form) el.form.submit();
+  });
+
   // Amount mask: digits fill in from the cents, so typing 125090 shows 1.250,90.
   document.addEventListener('input', function (e) {
     var input = e.target;

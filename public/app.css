@@ -1132,3 +1132,64 @@ tbody tr:last-child td {
 .modal .money {
   width: 100%;
 }
+
+/* Search and pagination of the contacts list. */
+.search {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 16px;
+}
+
+.search input {
+  flex: 1;
+  min-width: 0;
+}
+
+.pager {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.pager-size {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.pager-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pager-page {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (min-width: 641px) {
+  .pager .btn-icon {
+    width: 32px;
+    min-height: 32px;
+  }
+}
+
+.pager [aria-disabled='true'] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-icon {
+  padding: 0;
+  width: 44px;
+  flex: none;
+}
