@@ -41,13 +41,13 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
     if (typeof current === 'string') {
       try {
         const sp = new URL(current).searchParams;
-        return parsePanelQuery(sp.get('q'), sp.get('pagina'), sp.get('por'));
+        return parsePanelQuery(sp.get('q'), sp.get('pagina'), sp.get('por'), sp.get('origem'));
       } catch {
         /* fall through */
       }
     }
     const query = req.query as Record<string, unknown>;
-    return parsePanelQuery(query?.q, query?.pagina, query?.por);
+    return parsePanelQuery(query?.q, query?.pagina, query?.por, query?.origem);
   }
 
   app.get('/painel', async (req, reply) => {

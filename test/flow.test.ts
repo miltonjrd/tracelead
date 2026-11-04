@@ -288,6 +288,13 @@ test('painel pesquisa por nome ou telefone e pagina a lista de contatos', async 
   const byPhone = await get('/painel?q=' + encodeURIComponent('(11) 9000-00024'));
   assert.equal((byPhone.body.match(/class="contact-row/g) ?? []).length, 1);
 
+  const sem = await get('/painel?origem=maps');
+  assert.match(sem.body, /Nenhum contato encontrado com origem Google Maps/);
+  const todas = await get('/painel?origem=desconhecida');
+  assert.match(todas.body, /Contatos <span class="count">25<\/span>/);
+  const invalida = await get('/painel?origem=xyz');
+  assert.match(invalida.body, /Contatos <span class="count">25<\/span>/);
+
   const none = await get('/painel?q=zzz');
   assert.match(none.body, /Nenhum contato encontrado/);
 });

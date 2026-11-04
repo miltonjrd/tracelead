@@ -6,6 +6,7 @@ import { OPEN_WINDOW_MS, PAGE_SIZE, PAGE_SIZES, type PanelRow } from '../service
 import { DAY_MS } from '../lib/time.js';
 import type { HealthReason } from '../services/connectionHealth.js';
 import type { SessionStatus } from '../services/whatsappSessions.js';
+import { ORIGENS, type Origem } from '../db/schema.js';
 import { ORIGEM_LABEL, ORIGENS_MANUAIS } from './labels.js';
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
@@ -113,7 +114,7 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
   </tr>`;
 }
 
-export type PanelData = { pendentes: PanelRow[]; resolvidos: PanelRow[]; total: number; page: number; pages: number; size: number; q: string };
+export type PanelData = { pendentes: PanelRow[]; resolvidos: PanelRow[]; total: number; page: number; pages: number; size: number; q: string; origem: Origem | '' };
 
 /** A marked contact is one ruled line of the day's ledger: who, what, how much, undo. */
 export function ledgerRow(row: PanelRow, client: Client, error?: string, moved = false): SafeHtml {
@@ -142,6 +143,7 @@ function dayTotal(resolvidos: PanelRow[], client: Client): SafeHtml | '' {
 function listHref(data: PanelData, page: number): string {
   const params = new URLSearchParams();
   if (data.q) params.set('q', data.q);
+  if (data.origem) params.set('origem', data.origem);
   if (page > 1) params.set('pagina', String(page));
   if (data.size !== PAGE_SIZE) params.set('por', String(data.size));
   const qs = params.toString();
@@ -171,6 +173,7 @@ function pagination(data: PanelData): SafeHtml | '' {
   return html`<div class="pager">
     <form class="pager-size" method="get" action="/painel">
       ${data.q ? html`<input type="hidden" name="q" value="${data.q}">` : ''}
+      ${data.origem ? html`<input type="hidden" name="origem" value="${data.origem}">` : ''}
       <label for="por">Por página</label>
       <select id="por" name="por" data-autosubmit>
         ${PAGE_SIZES.map((n) => html`<option value="${n}"${n === data.size ? ' selected' : ''}>${n}</option>`)}
@@ -196,8 +199,8 @@ export function contactLists(
   opts: { movedId?: number; whatsappOff?: boolean; firstRun?: boolean } = {},
 ): SafeHtml {
   const card = (r: PanelRow) => contactCard(r, client, now, undefined, r.contact.id === opts.movedId);
-  const empty = data.q
-    ? html`<p class="empty">Nenhum contato encontrado para “${data.q}”.</p>`
+  const empty = data.q || data.origem
+    ? html`<p class="empty">Nenhum contato encontrado${data.q ? html` para “${data.q}”` : ''}${data.origem ? html` com origem ${ORIGEM_LABEL[data.origem]}` : ''}.</p>`
     : opts.whatsappOff
     ? html`<p class="empty">Conecte o WhatsApp para começar. Os contatos só chegam depois da conexão.</p>`
     : opts.firstRun
@@ -266,9 +269,14 @@ export function panelPage(
     <form class="search" method="get" action="/painel" role="search">
       <label class="sr-only" for="busca">Pesquisar contatos</label>
       <input id="busca" type="search" name="q" value="${data.q}" placeholder="Pesquisar por nome ou telefone" autocomplete="off">
+      <label class="sr-only" for="filtro-origem">Filtrar por origem</label>
+      <select id="filtro-origem" name="origem" data-autosubmit>
+        <option value="">Todas as origens</option>
+        ${ORIGENS.map((o) => html`<option value="${o}"${o === data.origem ? ' selected' : ''}>${ORIGEM_LABEL[o]}</option>`)}
+      </select>
       <button class="btn btn-secondary btn-icon" type="submit" aria-label="Pesquisar" title="Pesquisar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
       ${data.size !== PAGE_SIZE ? html`<input type="hidden" name="por" value="${data.size}">` : ''}
-      ${data.q ? html`<a class="btn-link" href="/painel">Limpar</a>` : ''}
+      ${data.q || data.origem ? html`<a class="btn-link" href="/painel">Limpar</a>` : ''}
     </form>
     ${avisoRegion()}
     ${contactLists(data, client, now, { whatsappOff: off, firstRun: !hasContacts })}

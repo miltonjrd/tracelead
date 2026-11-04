@@ -32,16 +32,18 @@ export interface PanelQuery {
   q?: string;
   page?: number;
   size?: number;
+  origem?: Origem | '';
 }
 
 /** Search text and page number from a request, tolerant of junk. */
-export function parsePanelQuery(q: unknown, page: unknown, size?: unknown): Required<PanelQuery> {
+export function parsePanelQuery(q: unknown, page: unknown, size?: unknown, origem?: unknown): Required<PanelQuery> {
   const n = Number(page);
   const sz = Number(size);
   return {
     q: typeof q === 'string' ? q.trim().slice(0, 80) : '',
     page: Number.isInteger(n) && n > 0 ? n : 1,
     size: (PAGE_SIZES as readonly number[]).includes(sz) ? sz : PAGE_SIZE,
+    origem: isOrigem(origem) ? origem : '',
   };
 }
 
@@ -57,6 +59,7 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
     eq(contacts.status, 'aberto'),
     gte(contacts.lastMessageAt, now - OPEN_WINDOW_MS),
     search,
+    query.origem ? eq(contacts.origem, query.origem) : undefined,
   );
   const [{ total }] = await db.select({ total: count() }).from(contacts).where(open);
   const size = query.size ?? PAGE_SIZE;
@@ -84,6 +87,7 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
     pages,
     size,
     q,
+    origem: query.origem ?? '',
   };
 }
 

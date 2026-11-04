@@ -1193,3 +1193,8 @@ tbody tr:last-child td {
   width: 44px;
   flex: none;
 }
+
+.search select {
+  flex: none;
+  max-width: 11rem;
+}
