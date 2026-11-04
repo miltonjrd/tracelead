@@ -126,7 +126,8 @@ export class WhatsAppSessions {
     for (const client of rows) {
       try {
         const { state } = await loadAuthState(this.db, client.id);
-        if (!state.creds.registered) continue;
+        // A QR pairing leaves `registered` false and only fills `me`, so either one means a saved login.
+        if (!state.creds.registered && !state.creds.me) continue;
         if (this.activeCount() >= this.opts.maxSessions) {
           this.opts.log.warn({ clientId: client.id }, 'limite de sessões do WhatsApp atingido, cliente não reconectado');
           continue;

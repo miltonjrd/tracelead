@@ -18,10 +18,10 @@ async function setup(opts: { max?: number; failFor?: () => boolean } = {}) {
   return { db, fake, timers, log, sessions, client };
 }
 
-/** Marks the client as already linked: saved creds with registered = true. */
+/** Marks the client as already linked the way a QR pairing does: `me` set, `registered` still false. */
 async function saveRegistered(db: ReturnType<typeof openDb>, clientId: number) {
   const a = await loadAuthState(db, clientId);
-  a.state.creds.registered = true;
+  a.state.creds.me = { id: '5511999990000:3@s.whatsapp.net', name: 'Loja' };
   await a.saveCreds();
 }
 
@@ -91,7 +91,7 @@ test('reinício reabre a sessão salva sem qr', async () => {
   const other = await createClient(db, { name: 'Nunca conectou' });
   await sessions.startAll();
   assert.equal(fake.socks.length, 1, 'só quem tem login salvo reabre');
-  assert.equal(fake.last().auth.creds.registered, true);
+  assert.ok(fake.last().auth.creds.me);
   fake.last().open();
   assert.equal(sessions.status(client.id).state, 'conectado');
   assert.equal(sessions.status(other.id).state, 'desconectado');
@@ -205,7 +205,7 @@ test('close 500 mantém o login e reconecta com espera', async () => {
   assert.equal((await db.select().from(whatsappAuth).where(eq(whatsappAuth.clientId, client.id))).length > 0, true);
   await timers.advance(1000);
   assert.equal(fake.socks.length, 2);
-  assert.equal(fake.last().auth.creds.registered, true);
+  assert.ok(fake.last().auth.creds.me);
 });
 
 test('reinício acima do limite reabre só até o limite', async () => {
