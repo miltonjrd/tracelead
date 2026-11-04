@@ -264,7 +264,7 @@ export function panelPage(
       ${connectionChip(client, status, health)}
     </div>
     ${off && !connecting
-      ? html`<p class="flash flash-erro" role="alert">O WhatsApp está desconectado, então novos contatos não chegam.</p>`
+      ? html`<p class="flash flash-erro" role="alert">WhatsApp desconectado. Conecte para receber novos contatos</p>`
       : ''}
     <form class="search" method="get" action="/painel" role="search">
       <label class="sr-only" for="busca">Pesquisar contatos</label>
