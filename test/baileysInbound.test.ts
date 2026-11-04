@@ -82,9 +82,23 @@ test('ignora grupo, status e mensagem da própria loja', async () => {
   assert.equal((await db.select().from(contacts)).length, 0);
 });
 
-test('ignora histórico (append)', async () => {
+test('append: ignora histórico antigo e aceita o que chegou nas últimas 24h', async () => {
   const { db, client, log, noLid } = await setupClient();
-  await processUpsert(db, client, { type: 'append', messages: [msg({})] }, noLid, log, now);
+  const old = msg({ id: 'OLD', ts: now - 25 * 60 * 60 * 1000 });
+  await processUpsert(db, client, { type: 'append', messages: [old] }, noLid, log, now);
+  assert.equal((await db.select().from(contacts)).length, 0);
+
+  const recent = msg({ id: 'NEW', ts: now - 3 * 60 * 60 * 1000 });
+  await processUpsert(db, client, { type: 'append', messages: [recent] }, noLid, log, now);
+  const [c] = await db.select().from(contacts);
+  assert.equal(c?.phone, `+${PHONE}`);
+  assert.equal(c?.firstMessageAt, now - 3 * 60 * 60 * 1000 - ((now - 3 * 60 * 60 * 1000) % 1000));
+});
+
+test('append: mensagem enviada por nós e mensagem sem data não viram contato', async () => {
+  const { db, client, log, noLid } = await setupClient();
+  const noDate = { ...msg({ id: 'ND' }), messageTimestamp: undefined } as WAMessage;
+  await processUpsert(db, client, { type: 'append', messages: [msg({ id: 'ME', fromMe: true }), noDate] }, noLid, log, now);
   assert.equal((await db.select().from(contacts)).length, 0);
 });
 

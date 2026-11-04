@@ -12,6 +12,7 @@ import {
 import type { Db } from '../db/client.js';
 import type { Client } from '../db/schema.js';
 import { extractRef } from '../lib/ref.js';
+import { DAY_MS } from '../lib/time.js';
 import { handleInboundMessage } from './tracking.js';
 
 export interface UpsertLog {
@@ -45,6 +46,10 @@ async function senderPhone(m: WAMessage, lookup: LidLookup): Promise<string | nu
   return pn && isPnUser(pn) ? (jidDecode(pn)?.user ?? null) : null;
 }
 
+// `append` carries history and what arrived while the socket was down. Only the last day counts:
+// enough to recover leads from a short outage without importing old chats as new contacts.
+const APPEND_MAX_AGE_MS = DAY_MS;
+
 export async function processUpsert(
   db: Db,
   client: Client,
@@ -53,10 +58,10 @@ export async function processUpsert(
   log: UpsertLog,
   now = Date.now(),
 ): Promise<number> {
-  if (upsert.type !== 'notify') return 0;
   let handled = 0;
   for (const m of upsert.messages) {
     try {
+      if (upsert.type === 'append' && !(now - Number(m.messageTimestamp) * 1000 <= APPEND_MAX_AGE_MS)) continue;
       const jid = m.key.remoteJid;
       if (!jid || m.key.fromMe || isJidGroup(jid) || isJidBroadcast(jid) || isJidNewsletter(jid)) continue;
       const phone = await senderPhone(m, lookupPn);
