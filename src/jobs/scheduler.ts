@@ -1,5 +1,5 @@
 import { Cron } from 'croner';
-import { isNotNull } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 import type { FastifyBaseLogger } from 'fastify';
 import { googleAdsConfigured, type Config } from '../config.js';
 import type { Db } from '../db/client.js';
@@ -18,7 +18,7 @@ export function startJobs(db: Db, config: Config, log: FastifyBaseLogger): () =>
 
   const spend = new Cron('0 6 * * *', opts, async () => {
     if (!googleAdsConfigured(config)) return;
-    const list = await db.select().from(clients).where(isNotNull(clients.googleAdsCustomerId));
+    const list = await db.select().from(clients).where(and(isNotNull(clients.googleAdsCustomerId), eq(clients.active, true)));
     for (const client of list) {
       const r = await runJob(db, 'ad_spend', client.id, () => syncAdSpend(db, config, client));
       log[r.ok ? 'info' : 'error']({ job: 'ad_spend', clientId: client.id }, r.detail);

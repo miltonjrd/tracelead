@@ -2,6 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import { html } from '../lib/html.js';
+import { changeOwnPassword } from '../services/accounts.js';
 import { authenticate, createSession, deleteSession, resolveSession, SESSION_TTL_MS } from '../services/auth.js';
 import { flash, page } from '../views/layout.js';
 
@@ -58,7 +59,29 @@ export function sessionHook(db: Db, config: Config) {
     }
     req.user = session.user;
     if (session.renewed) setSessionCookie(reply, token, config);
+    // First access: the app areas stay closed until the password set by the admin is replaced.
+    if (session.user.mustChangePassword && /^\/(painel|admin)(\/|$|\?)/.test(req.url)) {
+      if (isHtmx(req)) return reply.header('HX-Redirect', '/senha').code(401).send();
+      return reply.redirect('/senha', 303);
+    }
   };
+}
+
+function passwordPage(user: NonNullable<FastifyRequest['user']>, error?: string) {
+  const first = user.mustChangePassword;
+  return page({
+    title: 'Trocar senha',
+    body: html`<form method="post" action="/senha" class="card auth">
+      <h1>${first ? 'Crie sua senha' : 'Trocar senha'}</h1>
+      ${first ? html`<p class="muted">Este é seu primeiro acesso. Troque a senha recebida por uma só sua.</p>` : ''}
+      ${flash('erro', error)}
+      <label>Senha atual<input name="current" type="password" autocomplete="current-password" required autofocus></label>
+      <label>Nova senha (mínimo 8 caracteres)<input name="next" type="password" autocomplete="new-password" minlength="8" required></label>
+      <label>Repita a nova senha<input name="confirm" type="password" autocomplete="new-password" minlength="8" required></label>
+      <button class="btn btn-primary" type="submit">Salvar senha</button>
+      ${first ? '' : html`<a class="btn btn-secondary" href="${homeFor(user)}">Cancelar</a>`}
+    </form>`,
+  });
 }
 
 function loginPage(error?: string) {
@@ -95,7 +118,39 @@ export async function authRoutes(app: FastifyInstance, opts: { db: Db; config: C
           : null;
       if (!user) return reply.code(401).type('text/html').send(loginPage('Usuário ou senha incorretos.'));
       setSessionCookie(reply, await createSession(db, user.id), config);
-      return reply.redirect(user.role === 'admin' ? '/admin' : '/painel', 303);
+      return reply.redirect(user.mustChangePassword ? '/senha' : user.role === 'admin' ? '/admin' : '/painel', 303);
+    },
+  );
+
+  app.get('/senha', async (req, reply) => {
+    if (!req.user) return reply.redirect('/login', 303);
+    return reply.type('text/html').send(passwordPage(req.user));
+  });
+
+  app.post<{ Body: { current?: string; next?: string; confirm?: string } }>(
+    '/senha',
+    { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } },
+    async (req, reply) => {
+      const user = req.user;
+      if (!user) return reply.redirect('/login', 303);
+      const origin = req.headers.origin;
+      if (origin && origin !== 'null') {
+        let host: string | null = null;
+        try {
+          host = new URL(origin).host;
+        } catch {}
+        if (host !== req.headers.host) return reply.code(403).send('Origem não permitida');
+      }
+      const { current, next, confirm } = req.body ?? {};
+      const fail = (m: string) => reply.code(400).type('text/html').send(passwordPage(user, m));
+      if (typeof current !== 'string' || typeof next !== 'string') return fail('Preencha todos os campos.');
+      if (next !== confirm) return fail('A confirmação não confere com a nova senha.');
+      try {
+        await changeOwnPassword(db, user.id, current, next, req.cookies[SESSION_COOKIE] ?? '');
+      } catch (err) {
+        return fail((err as Error).message);
+      }
+      return reply.redirect(homeFor(user), 303);
     },
   );
 

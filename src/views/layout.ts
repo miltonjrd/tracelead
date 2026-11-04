@@ -26,6 +26,7 @@ ${user || nav
     ${user
       ? html`<form method="post" action="/logout" class="logout">
           <span class="muted">${user.username}</span>
+          <a class="btn-link" href="/senha">Trocar senha</a>
           <button class="btn-link" type="submit">Sair</button>
         </form>`
       : ''}

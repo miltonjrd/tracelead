@@ -1,5 +1,5 @@
 import { jidDecode, type AuthenticationState, type BaileysEventEmitter } from 'baileys';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { clients } from '../db/schema.js';
 import { processUpsert } from './baileysInbound.js';
@@ -133,23 +133,43 @@ export class WhatsAppSessions {
 
   /** Reopens the saved session of every `baileys` client, up to the session limit. */
   async startAll(): Promise<void> {
-    const rows = await this.db.select().from(clients).where(eq(clients.whatsappMode, 'baileys'));
-    for (const client of rows) {
-      try {
-        const { state } = await loadAuthState(this.db, client.id);
-        // A QR pairing leaves `registered` false and only fills `me`, so either one means a saved login.
-        if (!state.creds.registered && !state.creds.me) continue;
-        if (this.activeCount() >= this.opts.maxSessions) {
-          this.opts.log.warn({ clientId: client.id }, 'limite de sessões do WhatsApp atingido, cliente não reconectado');
-          continue;
-        }
-        const s: Session = { status: { state: 'conectando' }, gen: 0, attempt: 0, saveChain: Promise.resolve() };
-        this.sessions.set(client.id, s);
-        await this.open(client.id, s);
-      } catch (err) {
-        this.opts.log.error({ err, clientId: client.id }, 'falha ao reabrir sessão do WhatsApp');
+    const rows = await this.db
+      .select()
+      .from(clients)
+      .where(and(eq(clients.whatsappMode, 'baileys'), eq(clients.active, true)));
+    for (const client of rows) await this.resume(client.id);
+  }
+
+  /** Reopens one client's saved login, if it has one. */
+  async resume(clientId: number): Promise<void> {
+    try {
+      const existing = this.sessions.get(clientId);
+      if (existing && ACTIVE.has(existing.status.state)) return;
+      const { state } = await loadAuthState(this.db, clientId);
+      // A QR pairing leaves `registered` false and only fills `me`, so either one means a saved login.
+      if (!state.creds.registered && !state.creds.me) return;
+      if (this.activeCount() >= this.opts.maxSessions) {
+        this.opts.log.warn({ clientId }, 'limite de sessões do WhatsApp atingido, cliente não reconectado');
+        return;
       }
+      const s: Session = existing ?? { status: { state: 'conectando' }, gen: 0, attempt: 0, saveChain: Promise.resolve() };
+      s.status = { state: 'conectando' };
+      s.attempt = 0;
+      this.sessions.set(clientId, s);
+      await this.open(clientId, s);
+    } catch (err) {
+      this.opts.log.error({ err, clientId }, 'falha ao reabrir sessão do WhatsApp');
     }
+  }
+
+  /** Closes the socket but keeps the saved login, so reactivating the client doesn't need a new QR code. */
+  pause(clientId: number): void {
+    const s = this.sessions.get(clientId);
+    if (!s) return;
+    this.stop(s);
+    s.sock?.end();
+    s.sock = undefined;
+    s.status = { state: 'desconectado' };
   }
 
   async stopAll(): Promise<void> {
@@ -167,6 +187,7 @@ export class WhatsAppSessions {
       if (!ACTIVE.has(s.status.state)) continue;
       const client = await this.db.query.clients.findFirst({ where: eq(clients.id, clientId) });
       if (!client || client.whatsappMode !== 'baileys') await this.disconnect(clientId);
+      else if (!client.active) this.pause(clientId);
     }
   }
 
@@ -291,7 +312,7 @@ export class WhatsAppSessions {
   private async onUpsert(clientId: number, sock: WaSocket, upsert: Parameters<typeof processUpsert>[2]) {
     try {
       const client = await this.db.query.clients.findFirst({ where: eq(clients.id, clientId) });
-      if (!client || client.whatsappMode !== 'baileys') return;
+      if (!client || client.whatsappMode !== 'baileys' || !client.active) return;
       await processUpsert(this.db, client, upsert, (lid) => sock.signalRepository.lidMapping.getPNForLID(lid), this.opts.log);
     } catch (err) {
       this.opts.log.error({ err, clientId }, 'falha ao processar mensagens do WhatsApp');

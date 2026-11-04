@@ -63,6 +63,7 @@ export async function processWebhook(db: Db, payload: unknown, now = Date.now())
         result.unknownPhoneNumberIds.push(phoneNumberId);
         continue;
       }
+      if (!client.active) continue;
       const names = new Map((value.contacts ?? []).map((c) => [c.wa_id, c.profile?.name ?? null]));
       for (const m of value.messages ?? []) {
         if (!m.from) continue;

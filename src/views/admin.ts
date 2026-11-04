@@ -21,7 +21,7 @@ const SECTIONS: [Section, string, string][] = [
 
 export function adminNav(client: Client, active: Section, clientCount: number): SafeHtml {
   return html`<nav class="side-nav" aria-label="Admin">
-      ${clientCount > 1 ? html`<a class="side-link" href="/admin?todos=1">Clientes</a>` : ''}
+      <a class="side-link" href="/admin?todos=1">Clientes</a>
       ${SECTIONS.map(
         ([key, label, path]) =>
           html`<a class="side-link${key === active ? ' active' : ''}" href="/admin/c/${client.id}${path}"${key === active ? html` aria-current="page"` : ''}>${label}</a>`,
@@ -47,13 +47,70 @@ function pct(n: number, d: number): string {
 }
 
 export function clientListPage(list: Client[]): SafeHtml {
+  const novo = html`<a class="btn btn-primary btn-small" href="/admin/novo">Novo cliente</a>`;
   if (!list.length) {
-    return html`<div class="page-head"><h1>Nenhum cliente ainda</h1></div>
-      <p>Crie o primeiro no servidor:</p>
-      <pre class="code">npm run cli -- create-client --name "Nome do cliente"</pre>`;
+    return html`<div class="page-head"><h1>Nenhum cliente ainda</h1>${novo}</div>
+      <p class="muted">Crie o primeiro para começar a rastrear.</p>`;
   }
-  return html`<div class="page-head"><h1>Clientes</h1></div>
-    <ul class="list">${list.map((c) => html`<li><a href="/admin/c/${c.id}">${c.name}</a></li>`)}</ul>`;
+  return html`<div class="page-head"><h1>Clientes</h1>${novo}</div>
+    <ul class="list">${list.map(
+      (c) => html`<li class="contact-head">
+        <a href="/admin/c/${c.id}">${c.name}</a>
+        ${c.active ? '' : html`<span class="badge badge-warn">Desativado</span>`}
+        <form method="post" action="/admin/c/${c.id}/${c.active ? 'desativar' : 'ativar'}" class="inline">
+          <button class="btn btn-secondary btn-small" type="submit">${c.active ? 'Desativar' : 'Reativar'}</button>
+        </form>
+      </li>`,
+    )}</ul>`;
+}
+
+export interface NewClientForm {
+  name?: string;
+  timezone?: string;
+  adsCustomerId?: string;
+  whatsappMode?: string;
+  username?: string;
+}
+
+export function newClientPage(values: NewClientForm = {}, msg?: SafeHtml | ''): SafeHtml {
+  const mode = values.whatsappMode === 'cloud' ? 'cloud' : 'baileys';
+  return html`<div class="page-head"><h1>Novo cliente</h1></div>
+    ${msg ?? ''}
+    <form method="post" action="/admin/novo" class="card sale-edit">
+      <div class="grid-form">
+        <label>Nome<input name="name" value="${values.name ?? ''}" required maxlength="120"></label>
+        <label>Fuso horário<input name="timezone" value="${values.timezone ?? 'America/Sao_Paulo'}" required></label>
+        <label>ID da conta no Google Ads (opcional)<input name="adsCustomerId" inputmode="numeric" placeholder="123-456-7890" value="${values.adsCustomerId ?? ''}"></label>
+        <label>WhatsApp
+          <select name="whatsappMode">
+            <option value="baileys"${mode === 'baileys' ? ' selected' : ''}>Conectar por QR code</option>
+            <option value="cloud"${mode === 'cloud' ? ' selected' : ''}>API oficial (Cloud API)</option>
+          </select>
+        </label>
+      </div>
+      <h2 class="section-title">Acesso ao painel</h2>
+      <div class="grid-form">
+        <label>Usuário de login (opcional)<input name="username" autocomplete="off" value="${values.username ?? ''}"></label>
+      </div>
+      <p class="muted small">Se preencher o usuário, uma senha provisória é gerada e mostrada uma única vez; o cliente troca por uma própria no primeiro acesso.</p>
+      <div class="row"><button class="btn btn-primary" type="submit">Criar cliente</button><a class="btn btn-secondary" href="/admin?todos=1">Cancelar</a></div>
+    </form>`;
+}
+
+export function clientCreatedPage(client: Client, baseUrl: string, login: { username: string; password: string } | null): SafeHtml {
+  return html`<div class="page-head"><h1>Cliente criado: ${client.name}</h1></div>
+    <section class="card">
+      <h2 class="section-title">Snippet para o site</h2>
+      <pre class="code">${`<script src="${baseUrl}/t.js" data-client="${client.publicKey}" async></script>`}</pre>
+    </section>
+    ${login
+      ? html`<section class="card">
+          <h2 class="section-title">Login do cliente</h2>
+          <dl class="facts"><dt>Usuário</dt><dd>${login.username}</dd><dt>Senha</dt><dd><code>${login.password}</code></dd></dl>
+          <p class="muted small">Anote agora: a senha não será mostrada de novo.</p>
+        </section>`
+      : ''}
+    <p><a class="btn btn-primary" href="/admin/c/${client.id}">Abrir o cliente</a></p>`;
 }
 
 export function reportPage(r: WeeklyReport, client: Client, lastSpend: string | null, isCurrentWeek: boolean): SafeHtml {

@@ -2,7 +2,7 @@ import { and, desc, eq, gte } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { googleAdsConfigured, type Config } from '../config.js';
 import type { Db } from '../db/client.js';
-import { clicks, clients, contacts, type Client } from '../db/schema.js';
+import { clicks, clients, contacts, users, type Client } from '../db/schema.js';
 import { parseMoney } from '../lib/format.js';
 import type { SafeHtml } from '../lib/html.js';
 import { DAY_MS, fromLocal, isIsoDate, localDate, weekStart } from '../lib/time.js';
@@ -16,7 +16,9 @@ import { lastSpendDate, weeklyReport } from '../services/report.js';
 import { deleteSale, listSales, updateSale } from '../services/sales.js';
 import {
   adminNav,
+  clientCreatedPage,
   clientListPage,
+  newClientPage,
   contactsPage,
   exportsPage,
   reportPage,
@@ -27,6 +29,7 @@ import { connectionHealth } from '../services/connectionHealth.js';
 import type { WhatsAppSessions } from '../services/whatsappSessions.js';
 import { flash, page } from '../views/layout.js';
 import { requireRole } from './auth.js';
+import { createClient, createUser, generatePassword, setClientActive } from '../services/accounts.js';
 
 type Section = Parameters<typeof adminNav>[1];
 type Req = FastifyRequest<{
@@ -81,6 +84,59 @@ export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: 
     const list = await db.select().from(clients).orderBy(clients.name);
     if (list.length === 1 && !req.query.todos) return reply.redirect(`/admin/c/${list[0]!.id}`, 303);
     return reply.type('text/html').send(page({ title: 'Clientes', user: req.user, body: clientListPage(list) }));
+  });
+
+  for (const active of [false, true]) {
+    app.post(`/admin/c/:cid/${active ? 'ativar' : 'desativar'}`, async (req: Req, reply) => {
+      const client = await loadClient(req, reply);
+      if (!client) return;
+      await setClientActive(db, client.id, active);
+      if (!active) sessions.pause(client.id);
+      else if (client.whatsappMode === 'baileys') await sessions.resume(client.id);
+      return reply.redirect('/admin?todos=1', 303);
+    });
+  }
+
+  app.get('/admin/novo', async (req: Req, reply) =>
+    reply.type('text/html').send(page({ title: 'Novo cliente', user: req.user, body: newClientPage() })),
+  );
+
+  app.post('/admin/novo', async (req: Req, reply) => {
+    const b = req.body ?? {};
+    const values = {
+      name: b.name?.trim(),
+      timezone: b.timezone?.trim(),
+      adsCustomerId: b.adsCustomerId?.trim(),
+      whatsappMode: b.whatsappMode,
+      username: b.username?.trim().toLowerCase(),
+    };
+    const fail = (message: string) =>
+      reply.code(400).type('text/html').send(page({ title: 'Novo cliente', user: req.user, body: newClientPage(values, flash('erro', message)) }));
+    if (!values.name) return fail('Informe o nome do cliente.');
+    if (values.username) {
+      if (await db.query.users.findFirst({ where: eq(users.username, values.username) })) return fail('Esse usuário já existe.');
+    }
+    let client: Client;
+    try {
+      client = await createClient(db, {
+        name: values.name,
+        timezone: values.timezone || undefined,
+        googleAdsCustomerId: values.adsCustomerId || null,
+        whatsappMode: values.whatsappMode || undefined,
+      });
+    } catch (err) {
+      return fail((err as Error).message);
+    }
+    let login: { username: string; password: string } | null = null;
+    if (values.username) {
+      const password = generatePassword();
+      await createUser(db, { username: values.username, password, role: 'client', clientId: client.id, mustChangePassword: true });
+      login = { username: values.username, password };
+    }
+    return reply
+      .header('Cache-Control', 'no-store')
+      .type('text/html')
+      .send(page({ title: 'Cliente criado', user: req.user, body: clientCreatedPage(client, config.baseUrl, login) }));
   });
 
   app.get('/admin/c/:cid', async (req: Req, reply) => {

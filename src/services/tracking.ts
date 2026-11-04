@@ -39,7 +39,7 @@ export async function recordClick(
   if (!key || !isValidRef(ref)) throw new InvalidClick('chave ou ref inválidos');
 
   const client = await db.query.clients.findFirst({ where: eq(clients.publicKey, key) });
-  if (!client) return null;
+  if (!client?.active) return null;
 
   const v = Object.fromEntries(CLICK_FIELDS.map((f) => [f, field(b, f, 512)])) as Record<
     (typeof CLICK_FIELDS)[number],

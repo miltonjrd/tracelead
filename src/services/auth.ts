@@ -2,7 +2,7 @@ import { createHash, randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { promisify } from 'node:util';
 import { and, eq, lt } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { sessions, users, type User } from '../db/schema.js';
+import { clients, sessions, users, type User } from '../db/schema.js';
 
 const scryptAsync = promisify(scrypt) as (pw: string, salt: Buffer, len: number, opts: object) => Promise<Buffer>;
 
@@ -42,10 +42,15 @@ export async function authenticate(db: Db, username: string, password: string): 
     await verifyPassword(password, await dummyHash);
     return null;
   }
-  return (await verifyPassword(password, user.passwordHash)) ? user : null;
+  if (!(await verifyPassword(password, user.passwordHash))) return null;
+  if (user.clientId !== null) {
+    const client = await db.query.clients.findFirst({ where: eq(clients.id, user.clientId) });
+    if (!client?.active) return null;
+  }
+  return user;
 }
 
-function hashToken(token: string): string {
+export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
 
@@ -67,6 +72,7 @@ export interface SessionUser {
   username: string;
   role: 'admin' | 'client';
   clientId: number | null;
+  mustChangePassword: boolean;
 }
 
 export async function resolveSession(
@@ -84,11 +90,15 @@ export async function resolveSession(
       username: users.username,
       role: users.role,
       clientId: users.clientId,
+      mustChangePassword: users.mustChangePassword,
+      clientActive: clients.active,
     })
     .from(sessions)
     .innerJoin(users, eq(users.id, sessions.userId))
+    .leftJoin(clients, eq(clients.id, users.clientId))
     .where(eq(sessions.tokenHash, tokenHash));
   if (!row) return null;
+  if (row.clientId !== null && !row.clientActive) return null;
   if (row.expiresAt <= now) {
     await db.delete(sessions).where(eq(sessions.id, row.sessionId));
     return null;
@@ -100,8 +110,8 @@ export async function resolveSession(
       .set({ expiresAt: now + SESSION_TTL_MS, renewedAt: now })
       .where(eq(sessions.id, row.sessionId));
   }
-  const { id, username, role, clientId } = row;
-  return { user: { id, username, role, clientId }, renewed };
+  const { id, username, role, clientId, mustChangePassword } = row;
+  return { user: { id, username, role, clientId, mustChangePassword }, renewed };
 }
 
 export async function deleteSession(db: Db, token: string): Promise<void> {

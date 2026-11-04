@@ -11,6 +11,7 @@ export const clients = sqliteTable('clients', {
   whatsappMode: text('whatsapp_mode', { enum: ['baileys', 'cloud'] }).notNull().default('baileys'),
   timezone: text('timezone').notNull().default('America/Sao_Paulo'),
   currency: text('currency').notNull().default('BRL'),
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -20,6 +21,7 @@ export const users = sqliteTable('users', {
   username: text('username').notNull().unique(),
   passwordHash: text('password_hash').notNull(),
   role: text('role', { enum: ['admin', 'client'] }).notNull(),
+  mustChangePassword: integer('must_change_password', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at').notNull(),
 });
 

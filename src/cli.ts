@@ -127,13 +127,14 @@ async function main(): Promise<void> {
           password,
           role,
           clientId: args.client ? Number(args.client) : null,
+          mustChangePassword: role === 'client' && !args.password,
         });
         console.log(`Usuário ${u.username} (${u.role}) criado.${args.password ? '' : `\nSenha: ${password}`}`);
         break;
       }
       case 'set-password': {
         const password = args.password ?? generatePassword();
-        await setPassword(db, need('username'), password);
+        await setPassword(db, need('username'), password, !args.password);
         console.log(`Senha alterada; sessões abertas foram encerradas.${args.password ? '' : `\nNova senha: ${password}`}`);
         break;
       }
