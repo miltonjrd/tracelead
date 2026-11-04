@@ -197,14 +197,14 @@ test('marcar venda devolve as duas listas, contagens e aviso para o leitor de te
   assert.equal(sold.headers['hx-retarget'], '#painel-lista');
   assert.equal(sold.headers['hx-reswap'], 'outerHTML');
   assert.match(sold.body, /id="painel-lista"/);
-  assert.match(sold.body, /Para marcar <span class="count">0<\/span>/);
+  assert.match(sold.body, /Contatos <span class="count">0<\/span>/);
   assert.match(sold.body, /Marcados hoje <span class="count">1<\/span>/);
   assert.match(sold.body, /class="ledger-row moved"/);
   assert.match(sold.body, /Total do dia · 1 venda/);
   assert.match(sold.body, /hx-swap-oob="true"[^>]*role="status"[\s\S]*Venda de R\$\s150,00 registrada[\s\S]*aviso-undo/);
 
   const undo = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/reabrir`, ...form(cookie, {}, hx) });
-  assert.match(undo.body, /Para marcar <span class="count">1<\/span>/);
+  assert.match(undo.body, /Contatos <span class="count">1<\/span>/);
 
   // A rejected amount only re-renders the card, so the typed form stays where it is.
   const bad = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/venda`, ...form(cookie, { valor: 'abc' }, hx) });

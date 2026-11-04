@@ -17,7 +17,7 @@ import {
 import QRCode from 'qrcode';
 import { SessionLimitError, type WhatsAppSessions } from '../services/whatsappSessions.js';
 import { page } from '../views/layout.js';
-import { avisoRegion, contactCard, contactLists, ledgerRow, panelPage } from '../views/panel.js';
+import { avisoRegion, contactCard, contactLists, ledgerRow, panelNav, panelPage } from '../views/panel.js';
 import { connectionHealth } from '../services/connectionHealth.js';
 import { whatsappPage, whatsappStatus } from '../views/whatsapp.js';
 import { isHtmx, requireRole } from './auth.js';
@@ -38,7 +38,7 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
     const client = await currentClient(req);
     const now = Date.now();
     const data = await listPanel(db, client, now);
-    return reply.type('text/html').send(page({ title: 'Contatos', user: req.user, body: panelPage(data, client, now, sessions.status(client.id), await hasAnyContact(db, client.id), await connectionHealth(db, client, sessions.status(client.id), sessions.lastEventAt(client.id))) }));
+    return reply.type('text/html').send(page({ title: 'Contatos', user: req.user, nav: panelNav('contatos'), body: panelPage(data, client, now, sessions.status(client.id), await hasAnyContact(db, client.id), await connectionHealth(db, client, sessions.status(client.id), sessions.lastEventAt(client.id))) }));
   });
 
   /** Current connection state of the store's own client; the QR comes out as inline SVG. */
@@ -52,7 +52,7 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
   app.get('/painel/whatsapp', async (req, reply) => {
     const client = await currentClient(req);
     const { status, qrSvg, health } = await connection(client);
-    return reply.type('text/html').send(page({ title: 'WhatsApp', user: req.user, body: whatsappPage(client, status, qrSvg, health) }));
+    return reply.type('text/html').send(page({ title: 'WhatsApp', user: req.user, nav: panelNav('whatsapp'), body: whatsappPage(client, status, qrSvg, health) }));
   });
 
   app.get('/painel/whatsapp/estado', async (req, reply) => {
@@ -74,7 +74,7 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
       if (!isHtmx(req) && !error) return reply.redirect('/painel/whatsapp', 303);
       const { status, qrSvg, health } = await connection(client, error);
       if (isHtmx(req)) return reply.type('text/html').send(whatsappStatus(client, status, qrSvg, error, health).value);
-      return reply.type('text/html').send(page({ title: 'WhatsApp', user: req.user, body: whatsappPage(client, status, qrSvg, health) }));
+      return reply.type('text/html').send(page({ title: 'WhatsApp', user: req.user, nav: panelNav('whatsapp'), body: whatsappPage(client, status, qrSvg, health) }));
     });
   }
   whatsappAction('/painel/whatsapp/conectar', (client) => sessions.connect(client.id));
@@ -142,7 +142,7 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
   }, { moves: true, undoable: true });
   action('/painel/contatos/:id/reabrir', async (client, id) => {
     await reopen(db, client.id, id);
-    return 'Contato voltou para "Para marcar".';
+    return 'Contato voltou para "Contatos".';
   }, { moves: true });
   action('/painel/contatos/:id/origem', async (client, id, req) => {
     const origem = req.body?.origem;

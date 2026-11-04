@@ -1,19 +1,25 @@
 import type { Client } from '../db/schema.js';
 import { formatMoney, formatPhone } from '../lib/format.js';
 import { html, type SafeHtml } from '../lib/html.js';
-import { localDate, localTime, formatDateBr } from '../lib/time.js';
+import { addDays, localDate, localTime, formatDateBr } from '../lib/time.js';
 import { OPEN_WINDOW_MS, type PanelRow } from '../services/panel.js';
 import { DAY_MS } from '../lib/time.js';
 import type { HealthReason } from '../services/connectionHealth.js';
 import type { SessionStatus } from '../services/whatsappSessions.js';
 import { ORIGEM_LABEL, ORIGENS_MANUAIS } from './labels.js';
 
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+
+/** "Hoje, às 14:30", "Ontem, às …", "Anteontem, às …", then "Dia 12 de março, às …". */
 function when(ts: number, client: Client, now: number): string {
   const day = localDate(ts, client.timezone);
   const today = localDate(now, client.timezone);
-  const yesterday = localDate(now - 24 * 60 * 60 * 1000, client.timezone);
-  const label = day === today ? 'hoje' : day === yesterday ? 'ontem' : formatDateBr(day).slice(0, 5);
-  return `${label} ${localTime(ts, client.timezone)}`;
+  const time = localTime(ts, client.timezone);
+  if (day === today) return `Hoje, às ${time}`;
+  if (day === addDays(today, -1)) return `Ontem, às ${time}`;
+  if (day === addDays(today, -2)) return `Anteontem, às ${time}`;
+  const [, m, d] = day.split('-');
+  return `Dia ${Number(d)} de ${MESES[Number(m) - 1]}, às ${time}`;
 }
 
 function hx(action: string, id: number) {
@@ -26,6 +32,16 @@ function expiry(lastMessageAt: number, now: number): SafeHtml | '' {
   if (left > 2 * DAY_MS) return '';
   const label = left < DAY_MS ? 'Sai da lista hoje' : `Sai da lista em ${Math.ceil(left / DAY_MS)} dias`;
   return html` · <span class="expiry">${label}</span>`;
+}
+
+/** Sidebar of the store panel. */
+export function panelNav(active: 'contatos' | 'whatsapp'): SafeHtml {
+  const link = (key: typeof active, href: string, label: string) =>
+    html`<a class="side-link${key === active ? ' active' : ''}" href="${href}"${key === active ? html` aria-current="page"` : ''}>${label}</a>`;
+  return html`<nav class="side-nav" aria-label="Painel">
+    ${link('contatos', '/painel', 'Contatos')}
+    ${link('whatsapp', '/painel/whatsapp', 'WhatsApp')}
+  </nav>`;
 }
 
 export function contactCard(row: PanelRow, client: Client, now: number, error?: string, moved = false): SafeHtml {
@@ -77,19 +93,19 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
         </form>
       </details>`;
 
-  return html`<article class="card contact${moved ? ' moved' : ''}" id="contato-${c.id}">
-    <div class="contact-head">
-      <div>
-        <strong>${title}</strong>
-        ${c.name ? html`<a class="muted phone" href="https://wa.me/${c.phone.slice(1)}">${formatPhone(c.phone)}</a>` : ''}
-      </div>
-      <span class="badge badge-${c.origem}">${ORIGEM_LABEL[c.origem]}</span>
-    </div>
-    <p class="meta">Chegou ${when(c.firstMessageAt, client, now)}${c.lastMessageAt - c.firstMessageAt > 60_000 ? ` · última mensagem ${when(c.lastMessageAt, client, now)}` : ''}${expiry(c.lastMessageAt, now)}</p>
-    ${error ? html`<p class="flash flash-erro" role="alert">${error}</p>` : ''}
-    ${actions}
-    ${origem}
-  </article>`;
+  const arrived = `${when(c.firstMessageAt, client, now)}${c.lastMessageAt - c.firstMessageAt > 60_000 ? ` · última: ${when(c.lastMessageAt, client, now).toLowerCase()}` : ''}`;
+  return html`<tr class="contact-row${moved ? ' moved' : ''}" id="contato-${c.id}">
+    <td data-label="Contato">
+      <strong>${title}</strong>
+      ${c.name ? html`<a class="muted phone" href="https://wa.me/${c.phone.slice(1)}">${formatPhone(c.phone)}</a>` : ''}
+    </td>
+    <td data-label="Origem"><span class="badge badge-${c.origem}">${ORIGEM_LABEL[c.origem]}</span>${origem}</td>
+    <td data-label="Data de contato" class="meta">${arrived}${expiry(c.lastMessageAt, now)}</td>
+    <td data-label="Ação">
+      ${error ? html`<p class="flash flash-erro" role="alert">${error}</p>` : ''}
+      ${actions}
+    </td>
+  </tr>`;
 }
 
 export type PanelData = { pendentes: PanelRow[]; resolvidos: PanelRow[] };
@@ -127,13 +143,16 @@ export function contactLists(
 ): SafeHtml {
   const card = (r: PanelRow) => contactCard(r, client, now, undefined, r.contact.id === opts.movedId);
   const empty = opts.whatsappOff
-    ? html`<p class="empty">Conecte o WhatsApp para começar. Os contatos só chegam depois da conexão. <a href="/painel/whatsapp">Conectar agora</a></p>`
+    ? html`<p class="empty">Conecte o WhatsApp para começar. Os contatos só chegam depois da conexão.</p>`
     : opts.firstRun
       ? html`<p class="empty">Nenhum contato ainda. Quando alguém clicar no anúncio e chamar no WhatsApp, ele aparece aqui. Marcar Vendeu ou Não comprou é o que devolve as vendas ao Google Ads.</p>`
       : html`<p class="empty">Tudo marcado. Novos contatos do WhatsApp aparecem aqui.</p>`;
   return html`<div id="painel-lista">
-    <h2 class="section-title">Para marcar <span class="count">${data.pendentes.length}</span></h2>
-    ${data.pendentes.length ? html`<div class="stack">${data.pendentes.map(card)}</div>` : empty}
+    <h2 class="section-title">Contatos <span class="count">${data.pendentes.length}</span></h2>
+    ${data.pendentes.length ? html`<table class="contacts">
+      <thead><tr><th scope="col">Contato</th><th scope="col">Origem</th><th scope="col">Data de contato</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead>
+      <tbody>${data.pendentes.map(card)}</tbody>
+    </table>` : empty}
     ${data.resolvidos.length
       ? html`<h2 class="section-title">Marcados hoje <span class="count">${data.resolvidos.length}</span></h2>
           <ol class="ledger">${data.resolvidos.map((r) => ledgerRow(r, client, undefined, r.contact.id === opts.movedId))}${dayTotal(data.resolvidos, client)}</ol>`
@@ -157,14 +176,14 @@ function connectionChip(client: Client, status?: SessionStatus, health?: HealthR
   if (client.whatsappMode !== 'baileys' || !status) return '';
   switch (status.state) {
     case 'conectado':
-      if (health?.length) return html`<a class="chip chip-warn" href="/painel/whatsapp">WhatsApp sem receber? Confira</a>`;
-      return html`<a class="chip chip-ok" href="/painel/whatsapp">WhatsApp conectado</a>`;
+      if (health?.length) return html`<span class="chip chip-warn">WhatsApp sem receber? Confira</span>`;
+      return html`<span class="chip chip-ok">WhatsApp conectado</span>`;
     case 'conectando':
     case 'reconectando':
     case 'aguardando_qr':
-      return html`<a class="chip chip-warn" href="/painel/whatsapp">WhatsApp conectando…</a>`;
+      return html`<span class="chip chip-warn">WhatsApp conectando…</span>`;
     default:
-      return html`<a class="chip chip-error" href="/painel/whatsapp">WhatsApp desconectado</a>`;
+      return html`<span class="chip chip-error">WhatsApp desconectado</span>`;
   }
 }
 
@@ -177,14 +196,14 @@ export function panelPage(
   health?: HealthReason[],
 ): SafeHtml {
   const off = client.whatsappMode === 'baileys' && !!status && status.state !== 'conectado';
-  return html`<section>
+  return html`<section class="panel-col">
     <div class="page-head">
       <h1>${client.name}</h1>
       <p class="muted">${formatDateBr(localDate(now, client.timezone))}</p>
       ${connectionChip(client, status, health)}
     </div>
     ${off
-      ? html`<p class="flash flash-erro" role="alert">O WhatsApp está desconectado, então novos contatos não chegam. <a href="/painel/whatsapp">Conectar o WhatsApp</a></p>`
+      ? html`<p class="flash flash-erro" role="alert">O WhatsApp está desconectado, então novos contatos não chegam.</p>`
       : ''}
     ${avisoRegion()}
     ${contactLists(data, client, now, { whatsappOff: off, firstRun: !hasContacts })}

@@ -75,7 +75,6 @@ export function whatsappPage(client: Client, status: SessionStatus, qrSvg?: stri
   return html`<section class="card">
     <div class="page-head">
       <h1>WhatsApp</h1>
-      <a class="btn-link" href="/painel">Contatos</a>
     </div>
     ${whatsappStatus(client, status, qrSvg, undefined, health)}
   </section>`;

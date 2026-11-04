@@ -112,7 +112,7 @@ pre {
 
 .shell .container {
   width: 100%;
-  margin: 0;
+  margin: 0 auto;
 }
 
 .brand {
@@ -434,9 +434,13 @@ details.sale[open] > summary {
 }
 
 .btn-secondary {
-  background: var(--surface-2);
+  background: var(--surface);
   color: var(--text);
-  border-color: var(--control-border);
+  border-color: #b9beb8;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: var(--surface-2);
 }
 
 .btn-danger {
@@ -937,5 +941,129 @@ tbody tr:last-child td {
 @media (prefers-reduced-motion: reduce) {
   .ledger-row.moved {
     animation: none;
+  }
+}
+
+.panel-col {
+  max-width: 880px;
+  margin: 0 auto;
+}
+
+/* Pending contacts: a low-density table, one roomy row per contact. */
+.contacts {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.contacts th {
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.contacts td {
+  padding: 18px 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border);
+}
+
+.contacts tr:last-child td {
+  border-bottom: 0;
+}
+
+.contacts td:first-child {
+  display: table-cell;
+}
+
+.contacts td:first-child .phone {
+  display: block;
+}
+
+.contacts .meta {
+  margin: 0;
+}
+
+.contacts .actions {
+  grid-template-columns: auto auto;
+  justify-content: end;
+  align-items: center;
+}
+
+.contacts details.sale[open] {
+  grid-column: 1 / -1;
+}
+
+.contacts .origem-edit {
+  margin-top: 6px;
+}
+
+.contact-row.moved {
+  animation: moved-in 480ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (max-width: 640px) {
+  .contacts thead {
+    position: absolute;
+    left: -9999px;
+  }
+  .contacts,
+  .contacts tbody,
+  .contacts tr,
+  .contacts td {
+    display: block;
+  }
+  .contacts td {
+    border-bottom: 0;
+    padding: 4px 16px;
+  }
+  .contacts tr {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .contacts tr:last-child {
+    border-bottom: 0;
+  }
+  .contacts .actions {
+    justify-content: stretch;
+    grid-template-columns: 3fr 2fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contact-row.moved {
+    animation: none;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+/* Desktop widths: compact action buttons in the contacts table. Phones keep the 44px target. */
+@media (min-width: 641px) {
+  .contacts .actions .btn {
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 0.875rem;
+    border-radius: 8px;
+  }
+  .contacts .actions .btn-link {
+    min-height: 32px;
+  }
+  .contacts .actions > form > .btn,
+  .contacts details.sale > summary {
+    width: auto;
   }
 }
