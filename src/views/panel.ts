@@ -52,17 +52,19 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
   let actions: SafeHtml;
   if (c.status === 'aberto') {
     actions = html`<div class="actions">
-      <details class="sale"${error ? ' open' : ''}>
-        <summary class="btn btn-primary">Vendeu</summary>
+      <button class="btn btn-primary" type="button" data-modal-open="venda-modal-${c.id}">Vendeu</button>
+      <dialog class="modal" id="venda-modal-${c.id}" aria-labelledby="venda-title-${c.id}"${error ? ' data-autoopen' : ''}>
         <form ${hx(`${base}/venda`, c.id)} class="sale-form">
-          <label for="valor-${c.id}">Valor da venda</label>
-          <div class="row">
-            <span class="money"><span class="money-sign" aria-hidden="true">R$</span><input id="valor-${c.id}" name="valor" inputmode="decimal" autocomplete="off" placeholder="0,00" required></span>
+          <h3 id="venda-title-${c.id}">Registrar venda</h3>
+          ${error ? html`<p class="flash flash-erro" role="alert">${error}</p>` : ''}
+          <label for="valor-${c.id}">Valor da venda${c.name ? ` para ${c.name}` : ''}</label>
+          <span class="money"><span class="money-sign" aria-hidden="true">R$</span><input id="valor-${c.id}" name="valor" inputmode="decimal" autocomplete="off" placeholder="0,00" required></span>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancelar</button>
             <button class="btn btn-primary" type="submit">Confirmar</button>
           </div>
-          <button class="btn-link" type="button" data-cancel>Cancelar</button>
         </form>
-      </details>
+      </dialog>
       <form ${hx(`${base}/nao-comprou`, c.id)}>
         <button class="btn btn-secondary" type="submit">Não comprou</button>
       </form>
@@ -80,18 +82,22 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
 
   const origem = c.clickId
     ? ''
-    : html`<details class="origem-edit">
-        <summary class="origem-summary">Alterar origem</summary>
+    : html`<button class="btn-link origem-open" type="button" data-modal-open="origem-modal-${c.id}">Alterar origem</button>
+      <dialog class="modal" id="origem-modal-${c.id}" aria-labelledby="origem-title-${c.id}">
         <form ${hx(`${base}/origem`, c.id)} hx-trigger="change" class="origem">
-          <label for="origem-${c.id}">Como conheceu?</label>
+          <h3 id="origem-title-${c.id}">Alterar origem</h3>
+          <label for="origem-${c.id}">Como conheceu ${title}?</label>
           <select id="origem-${c.id}" name="origem">
             ${ORIGENS_MANUAIS.map(
               (o) => html`<option value="${o}"${o === c.origem ? ' selected' : ''}>${ORIGEM_LABEL[o]}</option>`,
             )}
           </select>
-          <noscript><button class="btn-link" type="submit">Salvar</button></noscript>
+          <div class="modal-actions">
+            <noscript><button class="btn btn-primary" type="submit">Salvar</button></noscript>
+            <button class="btn btn-secondary" type="button" data-modal-close>Cancelar</button>
+          </div>
         </form>
-      </details>`;
+      </dialog>`;
 
   const arrived = `${when(c.firstMessageAt, client, now)}${c.lastMessageAt - c.firstMessageAt > 60_000 ? ` · última: ${when(c.lastMessageAt, client, now).toLowerCase()}` : ''}`;
   return html`<tr class="contact-row${moved ? ' moved' : ''}" id="contato-${c.id}">
@@ -102,7 +108,6 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
     <td data-label="Origem"><span class="badge badge-${c.origem}">${ORIGEM_LABEL[c.origem]}</span>${origem}</td>
     <td data-label="Data de contato" class="meta">${arrived}${expiry(c.lastMessageAt, now)}</td>
     <td data-label="Ação">
-      ${error ? html`<p class="flash flash-erro" role="alert">${error}</p>` : ''}
       ${actions}
     </td>
   </tr>`;
@@ -196,13 +201,15 @@ export function panelPage(
   health?: HealthReason[],
 ): SafeHtml {
   const off = client.whatsappMode === 'baileys' && !!status && status.state !== 'conectado';
+  // While (re)connecting the chip already says so; the "disconnected" alert would be wrong.
+  const connecting = status?.state === 'conectando' || status?.state === 'reconectando' || status?.state === 'aguardando_qr';
   return html`<section class="panel-col">
     <div class="page-head">
       <h1>${client.name}</h1>
       <p class="muted">${formatDateBr(localDate(now, client.timezone))}</p>
       ${connectionChip(client, status, health)}
     </div>
-    ${off
+    ${off && !connecting
       ? html`<p class="flash flash-erro" role="alert">O WhatsApp está desconectado, então novos contatos não chegam.</p>`
       : ''}
     ${avisoRegion()}

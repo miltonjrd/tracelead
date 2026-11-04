@@ -7,28 +7,50 @@
     if (message && !window.confirm(message)) e.preventDefault();
   });
 
-  // Opening "Vendeu" goes straight to the amount field.
-  document.addEventListener(
-    'toggle',
-    function (e) {
-      var details = e.target;
-      if (details.matches && details.matches('details.sale') && details.open) {
-        var input = details.querySelector('input[name="valor"]');
-        if (input) input.focus();
-      }
-    },
-    true
-  );
+  // Amount mask: digits fill in from the cents, so typing 125090 shows 1.250,90.
+  document.addEventListener('input', function (e) {
+    var input = e.target;
+    if (!input.matches || !input.matches('input[name="valor"]')) return;
+    var digits = input.value.replace(/\D/g, '').replace(/^0+/, '');
+    if (!digits) {
+      input.value = '';
+      return;
+    }
+    digits = digits.padStart(3, '0');
+    var reais = digits.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    input.value = reais + ',' + digits.slice(-2);
+  });
 
-  // "Cancelar" closes the sale form and returns to the Vendeu button.
+  function openModal(dialog) {
+    dialog.showModal();
+    var input = dialog.querySelector('input[name="valor"]');
+    if (input) input.focus();
+  }
+
+  // A sale rejected by the server comes back with its dialog flagged to reopen.
+  function reopenFlagged() {
+    document.querySelectorAll('dialog[data-autoopen]').forEach(function (d) {
+      d.removeAttribute('data-autoopen');
+      if (!d.open) openModal(d);
+    });
+  }
+  document.body.addEventListener('htmx:afterSettle', reopenFlagged);
+
+  // Modals: a button opens its <dialog>; "Cancelar" and a click on the backdrop close it.
   document.addEventListener('click', function (e) {
-    var cancel = e.target.closest && e.target.closest('[data-cancel]');
-    if (!cancel) return;
-    var details = cancel.closest('details.sale');
-    if (!details) return;
-    details.open = false;
-    var summary = details.querySelector('summary');
-    if (summary) summary.focus();
+    var open = e.target.closest && e.target.closest('[data-modal-open]');
+    if (open) {
+      var dialog = document.getElementById(open.getAttribute('data-modal-open'));
+      if (dialog && dialog.showModal) openModal(dialog);
+      return;
+    }
+    var close = e.target.closest && e.target.closest('[data-modal-close]');
+    if (close) {
+      var d = close.closest('dialog');
+      if (d) d.close();
+      return;
+    }
+    if (e.target.tagName === 'DIALOG' && e.target.classList.contains('modal')) e.target.close();
   });
 
   // After a mark moves a card, keep keyboard and screen-reader focus on the announcement.

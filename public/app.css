@@ -29,7 +29,8 @@
   --text: #1c1f1d;
   --muted: #5f665f;
   --border: #dde1dc;
-  --control-border: #7f867f; /* 3:1+ against white and canvas (WCAG 1.4.11) */
+  --control-border: #7f867f;
+  /* 3:1+ against white and canvas (WCAG 1.4.11) */
   --primary: #15803d;
   --primary-hover: #116632;
   --primary-text: #ffffff;
@@ -173,6 +174,7 @@ pre {
   .shell {
     display: block;
   }
+
   .sidebar {
     position: sticky;
     z-index: 10;
@@ -187,11 +189,13 @@ pre {
     border-bottom: 1px solid var(--border);
     overflow: visible;
   }
+
   .logout {
     margin: 0;
     padding: 0;
     border: 0;
   }
+
   .side-nav {
     order: 3;
     flex: 0 0 100%;
@@ -201,11 +205,13 @@ pre {
     margin: 0 -16px;
     padding: 0 8px;
   }
+
   .side-link {
     white-space: nowrap;
     border-radius: 0;
     padding: 10px;
   }
+
   .side-link.active {
     background: none;
     box-shadow: inset 0 -2px 0 var(--primary);
@@ -277,7 +283,7 @@ pre {
   margin: 0;
 }
 
-section.card + section.card {
+section.card+section.card {
   margin-top: 12px;
 }
 
@@ -288,7 +294,7 @@ section.card + section.card {
   gap: 12px;
 }
 
-.contact-head > div {
+.contact-head>div {
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -316,8 +322,8 @@ section.card + section.card {
   margin: 0;
 }
 
-.actions > form > .btn,
-details.sale > summary {
+.actions>form>.btn,
+details.sale>summary {
   width: 100%;
 }
 
@@ -331,15 +337,15 @@ details.sale[open] {
   justify-content: space-between;
 }
 
-details.sale > summary {
+details.sale>summary {
   list-style: none;
 }
 
-details.sale > summary::-webkit-details-marker {
+details.sale>summary::-webkit-details-marker {
   display: none;
 }
 
-details.sale[open] > summary {
+details.sale[open]>summary {
   display: none;
 }
 
@@ -364,8 +370,8 @@ details.sale[open] > summary {
 }
 
 .origem-edit {
-  margin-top: 8px;
-  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  /* border-top: 1px solid var(--border); */
 }
 
 .origem-summary {
@@ -657,7 +663,7 @@ tbody tr:last-child td {
   margin: 0 0 12px;
 }
 
-.facts > div {
+.facts>div {
   display: flex;
   flex-wrap: wrap;
   justify-content: space-between;
@@ -748,7 +754,8 @@ tbody tr:last-child td {
   max-width: 280px;
   margin: 16px auto;
   padding: 12px;
-  background: #fff; /* a QR code only scans dark-on-light */
+  background: #fff;
+  /* a QR code only scans dark-on-light */
   border-radius: var(--radius);
 }
 
@@ -823,6 +830,7 @@ tbody tr:last-child td {
     transform: translateY(-10px);
     background: var(--ok-bg);
   }
+
   to {
     opacity: 1;
     transform: none;
@@ -1013,23 +1021,28 @@ tbody tr:last-child td {
     position: absolute;
     left: -9999px;
   }
+
   .contacts,
   .contacts tbody,
   .contacts tr,
   .contacts td {
     display: block;
   }
+
   .contacts td {
     border-bottom: 0;
     padding: 4px 16px;
   }
+
   .contacts tr {
     padding: 12px 0;
     border-bottom: 1px solid var(--border);
   }
+
   .contacts tr:last-child {
     border-bottom: 0;
   }
+
   .contacts .actions {
     justify-content: stretch;
     grid-template-columns: 3fr 2fr;
@@ -1059,11 +1072,63 @@ tbody tr:last-child td {
     font-size: 0.875rem;
     border-radius: 8px;
   }
+
   .contacts .actions .btn-link {
     min-height: 32px;
   }
-  .contacts .actions > form > .btn,
-  .contacts details.sale > summary {
+
+  .contacts .actions>form>.btn,
+  .contacts details.sale>summary {
     width: auto;
   }
+}
+/* Modal dialog (origem edit). */
+.origem-open {
+  min-height: 0;
+  padding: 0;
+  margin-top: 6px;
+  font-size: 0.85rem;
+}
+
+.modal {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  width: min(380px, calc(100vw - 32px));
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.18);
+}
+
+.modal::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+
+.modal .origem {
+  display: grid;
+  gap: 8px;
+  padding: 0;
+}
+
+.modal h3 {
+  margin: 0;
+}
+
+.modal select {
+  width: 100%;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.modal .sale-form {
+  gap: 8px;
+}
+
+.modal .money {
+  width: 100%;
 }

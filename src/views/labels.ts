@@ -6,7 +6,7 @@ export const ORIGEM_LABEL: Record<Origem, string> = {
   maps: 'Google Maps',
   indicacao: 'Indicação',
   passou_na_frente: 'Passou na frente',
-  desconhecida: 'Não sei',
+  desconhecida: 'Desconhecido',
 };
 
 /** What the client may pick when asking "como conheceu?"; "anuncio" only comes from tracking. */

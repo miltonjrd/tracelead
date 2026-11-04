@@ -228,7 +228,7 @@ test('origem fica recolhida no cartão e o botão de salvar tem rótulo para o e
   await ctx.db.update(contacts).set({ clickId: null }).where(eq(contacts.id, contact.id));
   const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
   const res = await ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
-  assert.match(res.body, /<details class="origem-edit">\s*<summary class="origem-summary">Alterar origem/);
+  assert.match(res.body, /data-modal-open="origem-modal-\d+">Alterar origem<\/button>\s*<dialog class="modal"/);
 });
 
 test('painel mostra primeira vez, aviso de expiração e total do dia', async () => {
