@@ -256,6 +256,7 @@ function whatsappBaileysCard(base: string, status: SessionStatus): SafeHtml {
     reconectando: html`<span class="badge badge-warn">Reconectando</span>`,
     qr_expirado: html`<span class="badge badge-error">QR expirado</span>`,
     desconectado_logout: html`<span class="badge badge-error">Desconectado pelo celular</span> A loja precisa escanear o QR code de novo.`,
+    substituida: html`<span class="badge badge-error">Aberto em outro lugar</span> Este login do WhatsApp foi aberto por outro servidor. Conecte de novo para retomar aqui.`,
     desconectado: html`<span class="badge badge-error">Desconectado</span>`,
   };
   const canDisconnect = status.state !== 'desconectado' && status.state !== 'desconectado_logout';

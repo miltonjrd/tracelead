@@ -46,6 +46,9 @@ export function whatsappStatus(client: Client, status: SessionStatus, qrSvg?: st
       case 'desconectado_logout':
         body = html`<p><span class="badge badge-error">Desconectado</span> Escaneie o QR code para conectar de novo.</p>${connectButton('Conectar WhatsApp')}`;
         break;
+      case 'substituida':
+        body = html`<p><span class="badge badge-error">Aberto em outro lugar</span> Este WhatsApp foi aberto em outro servidor e a conexão aqui foi encerrada. Novos contatos não chegam até você reconectar.</p>${connectButton('Reconectar WhatsApp')}`;
+        break;
       default:
         body = html`<p><span class="badge badge-error">Desconectado</span> O WhatsApp ainda não está conectado.</p>${connectButton('Conectar WhatsApp')}`;
     }

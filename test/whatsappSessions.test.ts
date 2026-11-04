@@ -208,6 +208,39 @@ test('close 500 mantém o login e reconecta com espera', async () => {
   assert.ok(fake.last().auth.creds.me);
 });
 
+test('close 440 (login aberto em outro lugar) não reconecta e mantém o login', async () => {
+  const { sessions, fake, timers, client, db, log } = await setup();
+  await saveRegistered(db, client.id);
+  await sessions.startAll();
+  fake.last().open();
+  fake.last().close(440);
+  await settle();
+  assert.deepEqual(sessions.status(client.id), { state: 'substituida' });
+  await timers.advance(10 * 60_000);
+  assert.equal(fake.socks.length, 1, 'não tenta de novo');
+  assert.equal((await db.select().from(whatsappAuth).where(eq(whatsappAuth.clientId, client.id))).length > 0, true);
+  assert.equal(log.warns.length, 1);
+  // the person can take the login back
+  await sessions.connect(client.id);
+  assert.equal(fake.socks.length, 2);
+});
+
+test('registra abertura e fechamento com o código e o tempo de silêncio', async () => {
+  const { sessions, fake, client, db, log } = await setup();
+  await saveRegistered(db, client.id);
+  await sessions.startAll();
+  assert.equal(sessions.lastEventAt(client.id), undefined);
+  fake.last().open();
+  assert.ok(sessions.lastEventAt(client.id));
+  fake.last().close(500);
+  await settle();
+  const closed = log.infos.find((o) => (o as { code?: number }).code === 500) as Record<string, unknown>;
+  assert.ok(closed, 'fechamento registrado com o código');
+  assert.equal(typeof closed.openForSec, 'number');
+  assert.equal(typeof closed.silentForSec, 'number');
+  assert.equal(JSON.stringify(log.infos).includes('5511'), false, 'sem número de telefone no log');
+});
+
 test('reinício acima do limite reabre só até o limite', async () => {
   const { sessions, fake, client, db, log } = await setup({ max: 1 });
   const second = await createClient(db, { name: 'Loja 2' });

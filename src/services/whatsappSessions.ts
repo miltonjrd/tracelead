@@ -12,7 +12,8 @@ export type SessionStatus =
   | { state: 'qr_expirado' }
   | { state: 'conectado'; phone: string }
   | { state: 'reconectando'; attempt: number }
-  | { state: 'desconectado_logout' };
+  | { state: 'desconectado_logout' }
+  | { state: 'substituida' };
 
 /** The slice of a Baileys socket the manager uses; tests pass a fake. */
 export interface WaSocket {
@@ -42,6 +43,8 @@ export const QR_TIMEOUT_MS = 2 * 60 * 1000;
 const BACKOFF_START_MS = 1000;
 const BACKOFF_MAX_MS = 60_000;
 const LOGGED_OUT = 401;
+// Another client opened the same login (a second server, a copied database): WhatsApp drops this one.
+const CONNECTION_REPLACED = 440;
 const RESTART_REQUIRED = 515;
 
 const defaultSchedule: Schedule = (fn, ms) => {
@@ -58,6 +61,9 @@ interface Session {
   saveChain: Promise<void>;
   cancelRetry?: () => void;
   cancelQr?: () => void;
+  openedAt?: number;
+  /** Last connection or message event from WhatsApp; for diagnosing a session that is "connected" but silent. */
+  lastEventAt?: number;
 }
 
 const ACTIVE = new Set<SessionStatus['state']>(['conectando', 'aguardando_qr', 'conectado', 'reconectando']);
@@ -82,6 +88,11 @@ export class WhatsAppSessions {
 
   status(clientId: number): SessionStatus {
     return this.sessions.get(clientId)?.status ?? { state: 'desconectado' };
+  }
+
+  /** When WhatsApp last sent this session anything (connection or messages), or undefined if never. */
+  lastEventAt(clientId: number): number | undefined {
+    return this.sessions.get(clientId)?.lastEventAt;
   }
 
   private activeCount(): number {
@@ -193,6 +204,7 @@ export class WhatsAppSessions {
     });
     sock.ev.on('connection.update', (u) => {
       if (!live()) return;
+      if (u.connection || u.qr) s.lastEventAt = Date.now();
       if (u.qr) {
         s.status = { state: 'aguardando_qr', qr: u.qr };
         s.cancelQr ??= this.schedule(() => this.expireQr(s), QR_TIMEOUT_MS);
@@ -201,16 +213,30 @@ export class WhatsAppSessions {
         s.cancelQr?.();
         s.cancelQr = undefined;
         s.attempt = 0;
+        s.openedAt = Date.now();
+        this.opts.log.info({ clientId }, 'whatsapp: conexão aberta');
         const user = sock.user ? jidDecode(sock.user.id)?.user : undefined;
         s.status = { state: 'conectado', phone: user ? `+${user}` : '' };
       }
       if (u.connection === 'close') {
         const code = (u.lastDisconnect?.error as { output?: { statusCode?: number } } | undefined)?.output?.statusCode;
+        const now = Date.now();
+        this.opts.log.info(
+          {
+            clientId,
+            code,
+            openForSec: s.openedAt ? Math.round((now - s.openedAt) / 1000) : undefined,
+            silentForSec: s.lastEventAt ? Math.round((now - s.lastEventAt) / 1000) : undefined,
+          },
+          'whatsapp: conexão fechada',
+        );
+        s.openedAt = undefined;
         void this.onClose(clientId, s, gen, code);
       }
     });
     sock.ev.on('messages.upsert', (upsert) => {
       if (!live()) return;
+      s.lastEventAt = Date.now();
       void this.onUpsert(clientId, sock, upsert);
     });
   }
@@ -234,6 +260,14 @@ export class WhatsAppSessions {
       this.stop(s);
       await clearAuthState(this.db, clientId);
       s.status = { state: 'desconectado_logout' };
+      return;
+    }
+    if (code === CONNECTION_REPLACED) {
+      // Retrying would knock the other client off in turn, and the two would fight forever.
+      // The login stays saved: the person decides which one keeps it.
+      this.stop(s);
+      this.opts.log.warn({ clientId }, 'whatsapp: login aberto em outro lugar, sessão encerrada sem reconectar');
+      s.status = { state: 'substituida' };
       return;
     }
     if (code === RESTART_REQUIRED) {
