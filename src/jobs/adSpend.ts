@@ -1,8 +1,9 @@
 import { and, eq, gte, isNotNull, isNull, sql } from 'drizzle-orm';
-import { googleAdsConfigured, type Config } from '../config.js';
+import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import { adSpend, clicks, type Client } from '../db/schema.js';
 import { addDays, DAY_MS, localDate } from '../lib/time.js';
+import { clientGoogleAdsConfigured, resolveGoogleAds } from '../services/googleAdsSettings.js';
 import { searchStream, type FetchLike } from './googleAds.js';
 
 interface CampaignResult {
@@ -26,7 +27,8 @@ export async function syncAdSpend(
   client: Client,
   opts: { days?: number; now?: number; fetchImpl?: FetchLike } = {},
 ): Promise<string> {
-  if (!googleAdsConfigured(config)) throw new Error('Google Ads API não configurada (variáveis GOOGLE_ADS_*)');
+  if (!clientGoogleAdsConfigured(config, client)) throw new Error('Google Ads API não configurada para este cliente (nem no cliente nem nas variáveis GOOGLE_ADS_*)');
+  const googleAds = resolveGoogleAds(config, client);
   if (!client.googleAdsCustomerId) throw new Error('Cliente sem google_ads_customer_id');
   const days = opts.days ?? 7;
   const now = opts.now ?? Date.now();
@@ -35,7 +37,7 @@ export async function syncAdSpend(
   const from = addDays(to, -(days - 1));
 
   const rows = await searchStream<CampaignResult>(
-    config.googleAds,
+    googleAds,
     customerId,
     `SELECT segments.date, campaign.id, campaign.name, metrics.cost_micros, metrics.clicks, metrics.impressions
      FROM campaign WHERE segments.date BETWEEN '${from}' AND '${to}'`,
@@ -72,7 +74,7 @@ export async function syncAdSpend(
     // click_view only accepts a single-day filter.
     for (let d = from; d <= to; d = addDays(d, 1)) {
       const views = await searchStream<ClickViewResult>(
-        config.googleAds,
+        googleAds,
         customerId,
         `SELECT click_view.gclid, campaign.id FROM click_view WHERE segments.date = '${d}'`,
         opts.fetchImpl,

@@ -4,10 +4,12 @@ export class GoogleAdsError extends Error {}
 
 export type FetchLike = (url: string, init?: RequestInit) => Promise<Response>;
 
-let cached: { refreshToken: string; token: string; expiresAt: number } | null = null;
+const cache = new Map<string, { token: string; expiresAt: number }>();
 
 async function accessToken(cfg: Config['googleAds'], fetchImpl: FetchLike): Promise<string> {
-  if (cached && cached.refreshToken === cfg.refreshToken && cached.expiresAt > Date.now() + 60_000) return cached.token;
+  const key = `${cfg.clientId}:${cfg.refreshToken}`;
+  const hit = cache.get(key);
+  if (hit && hit.expiresAt > Date.now() + 60_000) return hit.token;
   const res = await fetchImpl('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -22,7 +24,7 @@ async function accessToken(cfg: Config['googleAds'], fetchImpl: FetchLike): Prom
   if (!res.ok || !data.access_token) {
     throw new GoogleAdsError(`Falha ao renovar o token OAuth: ${data.error_description ?? data.error ?? res.status}`);
   }
-  cached = { refreshToken: cfg.refreshToken, token: data.access_token, expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000 };
+  cache.set(key, { token: data.access_token, expiresAt: Date.now() + (data.expires_in ?? 3600) * 1000 });
   return data.access_token;
 }
 
@@ -63,5 +65,5 @@ export async function searchStream<T>(
 }
 
 export function resetTokenCache(): void {
-  cached = null;
+  cache.clear();
 }

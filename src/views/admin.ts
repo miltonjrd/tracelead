@@ -336,7 +336,15 @@ export function systemPage(opts: {
   client: Client;
   baseUrl: string;
   metaConfigured: { appSecret: boolean; verifyToken: boolean };
-  googleAdsConfigured: boolean;
+  googleAds: {
+    configured: boolean;
+    own: { developerToken: boolean; clientId: boolean; clientSecret: boolean; refreshToken: boolean };
+    clientId: string;
+    loginCustomerId: string;
+    conversionNames: { lead: string; venda: string };
+    ownConversionNames: { lead: string; venda: string };
+    defaults: { clientId: string; loginCustomerId: string };
+  };
   whatsapp: SessionStatus;
   whatsappHealth?: HealthReason[];
   backups: RunRow[];
@@ -371,15 +379,17 @@ export function systemPage(opts: {
     <section class="card">
       <div class="contact-head">
         <h3>Gasto do Google Ads</h3>
-        <form method="post" action="${base}/gasto"><button class="btn btn-secondary btn-small" type="submit"${opts.googleAdsConfigured && client.googleAdsCustomerId ? '' : ' disabled'}>Sincronizar agora</button></form>
+        <form method="post" action="${base}/gasto"><button class="btn btn-secondary btn-small" type="submit"${opts.googleAds.configured && client.googleAdsCustomerId ? '' : ' disabled'}>Sincronizar agora</button></form>
       </div>
       <dl class="facts">
-        <div><dt>Credenciais da API (GOOGLE_ADS_*)</dt><dd>${yesNo(opts.googleAdsConfigured)}</dd></div>
+        <div><dt>Credenciais da API</dt><dd>${yesNo(opts.googleAds.configured)}</dd></div>
         <div><dt>Customer ID deste cliente</dt><dd>${client.googleAdsCustomerId ? html`<code>${client.googleAdsCustomerId}</code>` : yesNo(false)}</dd></div>
       </dl>
       <p class="small muted">Roda todo dia às 6h e relê os últimos 7 dias.</p>
       ${runsTable(opts.spendRuns, client)}
     </section>
+
+    ${googleAdsForm(base, client, opts.googleAds)}
 
     <section class="card">
       <div class="contact-head">
@@ -389,4 +399,30 @@ export function systemPage(opts: {
       <p class="small muted">Roda todo dia às 3h.</p>
       ${runsTable(opts.backups, client)}
     </section>`;
+}
+
+
+function googleAdsForm(base: string, client: Client, g: Parameters<typeof systemPage>[0]['googleAds']): SafeHtml {
+  const secretHint = (own: boolean) => (own ? 'salvo; deixe em branco para manter' : 'usa o padrão do servidor');
+  return html`<section class="card">
+    <h3>Configuração do Google Ads deste cliente</h3>
+    <p class="small muted">Tudo o que ficar em branco usa o padrão do servidor (variáveis <code>GOOGLE_ADS_*</code> e <code>CONVERSION_NAME_*</code> do <code>.env</code>). Preencha só o que for diferente para este cliente.</p>
+    <form method="post" action="${base}/google-ads" class="sale-edit">
+      <div class="grid-form">
+        <label>ID da conta do cliente (Customer ID)<input name="customerId" inputmode="numeric" placeholder="123-456-7890" value="${client.googleAdsCustomerId ?? ''}"></label>
+        <label>ID da conta administradora (MCC)<input name="loginCustomerId" inputmode="numeric" placeholder="${g.defaults.loginCustomerId || 'opcional'}" value="${g.loginCustomerId}"></label>
+        <label>Developer token<input name="developerToken" type="password" autocomplete="off" placeholder="${secretHint(g.own.developerToken)}"></label>
+        <label>OAuth client ID<input name="clientId" autocomplete="off" placeholder="${g.defaults.clientId ? 'padrão do servidor' : ''}" value="${g.clientId}"></label>
+        <label>OAuth client secret<input name="clientSecret" type="password" autocomplete="off" placeholder="${secretHint(g.own.clientSecret)}"></label>
+        <label>Refresh token<input name="refreshToken" type="password" autocomplete="off" placeholder="${secretHint(g.own.refreshToken)}"></label>
+        <label>Conversão de lead<input name="conversionNameLead" placeholder="${g.conversionNames.lead}" value="${g.ownConversionNames.lead}"></label>
+        <label>Conversão de venda<input name="conversionNameVenda" placeholder="${g.conversionNames.venda}" value="${g.ownConversionNames.venda}"></label>
+      </div>
+      <p class="small muted">Os campos secretos nunca são exibidos de volta. Para gerar o refresh token deste cliente: <code>npm run cli -- google-auth --id ${client.id}</code>.</p>
+      <div class="row">
+        <button class="btn btn-primary" type="submit">Salvar</button>
+        <button class="btn btn-secondary" type="submit" name="limpar" value="1" formnovalidate>Voltar ao padrão do servidor</button>
+      </div>
+    </form>
+  </section>`;
 }

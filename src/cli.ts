@@ -4,6 +4,8 @@ import { parseArgs } from 'node:util';
 import { loadConfig } from './config.js';
 import { openDb } from './db/client.js';
 import { clients } from './db/schema.js';
+import { eq } from 'drizzle-orm';
+import { resolveGoogleAds, saveGoogleAdsSettings } from './services/googleAdsSettings.js';
 import { createClient, createUser, generatePassword, setPassword, updateClient } from './services/accounts.js';
 
 const HELP = `Uso: npm run cli -- <comando> [opções]
@@ -14,7 +16,8 @@ const HELP = `Uso: npm run cli -- <comando> [opções]
   list-clients
   create-user    --username <u> --role admin|client [--client <id>] [--password <senha>]
   set-password   --username <u> [--password <senha>]
-  google-auth    [--port 8085]   gera o GOOGLE_ADS_REFRESH_TOKEN (precisa de CLIENT_ID e CLIENT_SECRET no .env)
+  google-auth    [--id <cliente>] [--port 8085]   gera o refresh token do Google Ads. Com --id, usa o OAuth
+                 client do cliente (ou o do .env) e salva o token nele; sem --id, imprime o GOOGLE_ADS_REFRESH_TOKEN
 
 Sem --password, uma senha aleatória é gerada e mostrada uma vez.`;
 
@@ -45,8 +48,11 @@ function need(name: keyof typeof args): string {
 const config = loadConfig();
 
 async function googleAuth(): Promise<void> {
-  const { clientId, clientSecret } = config.googleAds;
-  if (!clientId || !clientSecret) throw new Error('Defina GOOGLE_ADS_CLIENT_ID e GOOGLE_ADS_CLIENT_SECRET no .env');
+  const db = args.id ? openDb(config.databasePath) : null;
+  const client = db ? await db.query.clients.findFirst({ where: eq(clients.id, Number(args.id)) }) : null;
+  if (db && !client) throw new Error(`Cliente ${args.id} não existe`);
+  const { clientId, clientSecret } = client ? resolveGoogleAds(config, client) : config.googleAds;
+  if (!clientId || !clientSecret) throw new Error('Defina o OAuth client ID/secret (no cliente ou GOOGLE_ADS_CLIENT_ID/SECRET no .env)');
   const port = Number(args.port ?? 8085);
   const redirectUri = `http://localhost:${port}/callback`;
   const state = randomBytes(16).toString('hex');
@@ -83,6 +89,17 @@ async function googleAuth(): Promise<void> {
   });
   const data = (await res.json()) as { refresh_token?: string; error_description?: string };
   if (!data.refresh_token) throw new Error(`Sem refresh token: ${data.error_description ?? res.status}`);
+  if (client && db) {
+    await saveGoogleAdsSettings(db, client.id, {
+      refreshToken: data.refresh_token,
+      clientId: client.googleAdsClientId ?? '',
+      loginCustomerId: client.googleAdsLoginCustomerId ?? '',
+      conversionNameLead: client.conversionNameLead ?? '',
+      conversionNameVenda: client.conversionNameVenda ?? '',
+    });
+    console.log(`Refresh token salvo no cliente ${client.id} (${client.name}).`);
+    return;
+  }
   console.log(`Coloque no .env:\n\nGOOGLE_ADS_REFRESH_TOKEN=${data.refresh_token}\n`);
 }
 

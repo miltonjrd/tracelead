@@ -1,6 +1,6 @@
 import { and, desc, eq, gte } from 'drizzle-orm';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { googleAdsConfigured, type Config } from '../config.js';
+import type { Config } from '../config.js';
 import type { Db } from '../db/client.js';
 import { clicks, clients, contacts, users, type Client } from '../db/schema.js';
 import { parseMoney } from '../lib/format.js';
@@ -29,7 +29,8 @@ import { connectionHealth } from '../services/connectionHealth.js';
 import type { WhatsAppSessions } from '../services/whatsappSessions.js';
 import { flash, page } from '../views/layout.js';
 import { requireRole } from './auth.js';
-import { createClient, createUser, generatePassword, setClientActive } from '../services/accounts.js';
+import { clearGoogleAdsSettings, clientGoogleAdsConfigured, ownGoogleAds, resolveConversionNames, saveGoogleAdsSettings } from '../services/googleAdsSettings.js';
+import { createClient, createUser, generatePassword, setClientActive, updateClient } from '../services/accounts.js';
 
 type Section = Parameters<typeof adminNav>[1];
 type Req = FastifyRequest<{
@@ -49,6 +50,8 @@ const MESSAGES: Record<string, string> = {
   job: 'Concluído. Veja o resultado na tabela.',
   jobErro: 'Falhou. Veja o detalhe na tabela.',
   whatsappDesconectado: 'WhatsApp desconectado.',
+  googleAdsSalvo: 'Configuração do Google Ads salva.',
+  googleAdsLimpo: 'Configuração própria removida; o cliente volta a usar o padrão do servidor.',
 };
 
 const SIXTY_DAYS = 60 * DAY_MS;
@@ -232,7 +235,7 @@ export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: 
       exportStats(db, client.id),
       await listExportFiles(db, client.id),
       client,
-      config.conversionNames,
+      resolveConversionNames(config, client),
       messages(req),
     );
     return render(req, reply, client, 'exportacoes', 'Exportações', body);
@@ -251,7 +254,7 @@ export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: 
     const client = await loadClient(req, reply);
     if (!client) return;
     const arquivo = req.params.arquivo ?? '';
-    const csv = await exportFileCsv(db, client, arquivo, config.conversionNames);
+    const csv = await exportFileCsv(db, client, arquivo, resolveConversionNames(config, client));
     if (!csv) return reply.code(404).send('Arquivo não encontrado');
     return reply
       .type('text/csv; charset=utf-8')
@@ -273,7 +276,15 @@ export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: 
       client,
       baseUrl: config.baseUrl,
       metaConfigured: { appSecret: Boolean(config.meta.appSecret), verifyToken: Boolean(config.meta.verifyToken) },
-      googleAdsConfigured: googleAdsConfigured(config),
+      googleAds: {
+        configured: clientGoogleAdsConfigured(config, client),
+        own: ownGoogleAds(client),
+        clientId: client.googleAdsClientId ?? '',
+        loginCustomerId: client.googleAdsLoginCustomerId ?? '',
+        conversionNames: resolveConversionNames(config, client),
+        ownConversionNames: { lead: client.conversionNameLead ?? '', venda: client.conversionNameVenda ?? '' },
+        defaults: { clientId: config.googleAds.clientId, loginCustomerId: config.googleAds.loginCustomerId },
+      },
       whatsapp: sessions.status(client.id),
       whatsappHealth: await connectionHealth(db, client, sessions.status(client.id), sessions.lastEventAt(client.id)),
       backups: await recentRuns(db, 'backup', null),
@@ -295,6 +306,27 @@ export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: 
     if (!client) return;
     const r = await runJob(db, 'backup', null, () => runBackup(db, config));
     return reply.redirect(`/admin/c/${client.id}/sistema?${r.ok ? 'ok=job' : 'erro=jobErro'}`, 303);
+  });
+
+  app.post('/admin/c/:cid/sistema/google-ads', async (req: Req, reply) => {
+    const client = await loadClient(req, reply);
+    if (!client) return;
+    const b = req.body ?? {};
+    if (b.limpar) {
+      await clearGoogleAdsSettings(db, client.id);
+      return reply.redirect(`/admin/c/${client.id}/sistema?ok=googleAdsLimpo`, 303);
+    }
+    await saveGoogleAdsSettings(db, client.id, {
+      developerToken: b.developerToken,
+      clientId: b.clientId,
+      clientSecret: b.clientSecret,
+      refreshToken: b.refreshToken,
+      loginCustomerId: b.loginCustomerId,
+      conversionNameLead: b.conversionNameLead,
+      conversionNameVenda: b.conversionNameVenda,
+    });
+    await updateClient(db, client.id, { googleAdsCustomerId: b.customerId ?? '' });
+    return reply.redirect(`/admin/c/${client.id}/sistema?ok=googleAdsSalvo`, 303);
   });
 
   app.post('/admin/c/:cid/sistema/gasto', async (req: Req, reply) => {
