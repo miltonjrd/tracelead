@@ -95,7 +95,7 @@ components:
 
 **Creative North Star: "O Caderno de Vendas"**
 
-O TraceLead parece uma anotação de balcão bem feita: papel claro, linhas finas, um único verde que marca o que foi vendido. A loja abre o painel entre um atendimento e outro, decide uma coisa por contato (vendeu ou não) e fecha. O gestor lê tabelas e números sem ser distraído. A interface é um instrumento, não uma vitrine.
+O TraceLead parece uma anotação de balcão bem feita: papel claro, linhas finas, um único verde que marca o que foi vendido. A loja abre o painel entre um atendimento e outro, decide uma coisa por contato (vendeu ou não, ou deixa em orçamento esperando resposta) e fecha. O gestor lê tabelas e números sem ser distraído. A interface é um instrumento, não uma vitrine.
 
 A densidade é média e a hierarquia vem de peso, cor de texto e linhas finas, não de sombras ou decoração. Os componentes são firmes e tocáveis: alvos de 44px, cantos suaves, foco evidente, pensados para uma mão no celular e igualmente corretos no PC. O verde é a marca própria do produto, não uma imitação da identidade do WhatsApp.
 
@@ -211,8 +211,15 @@ Cantos suaves e consistentes: 12px em cartões, tabelas e blocos; 10px em botõe
 ### Caderno do dia (Marcados hoje)
 - Lista em linhas pautadas dentro de um contêiner de 12px: nome à esquerda, resultado em algarismos tabulares à direita ("Vendeu R$ 150,00" ou "Não comprou") e "Desfazer". Fecha com uma linha dupla (3px double, #7f867f) e "Total do dia · N vendas" com o valor. Contatos pendentes continuam sendo cartões; só os resolvidos viram linhas.
 
+### Filtro de período
+- Na barra de busca, "De / até" (dois `input type="date"`, nunca futuros) e, abaixo, os atalhos Hoje · Ontem · 7 dias · 30 dias no mesmo estilo do segmented control. O corte é pela data do primeiro contato — a mesma que ordena as listas.
+- Com período ativo, as três listas passam a mostrar aquele intervalo em vez da janela de 7 dias e do dia corrente: "Marcados hoje" vira "Marcados", "Total do dia" vira "Total do período", e uma linha sob o título explica o corte com "Voltar para hoje". Busca, origem e paginação continuam valendo dentro do período.
+
+### Orçamentos
+- Seção própria entre "Contatos" e "Marcados hoje", com os mesmos cartões: contatos que já receberam orçamento e esperam resposta. O cartão mantém Vendeu e Não comprou (o botão Orçamento sai), ganha a pílula âmbar "Orçamento hoje, às 14:30" e um "Tirar do orçamento". Não entra no caderno do dia: ainda não é uma decisão.
+
 ### Aviso de expiração
-- Contatos abertos a menos de 2 dias de sair da janela de 7 dias mostram "Sai da lista em N dias" (ou "hoje") em âmbar no cartão.
+- Contatos abertos a menos de 2 dias de sair da janela de 7 dias mostram "Sai da lista em N dias" (ou "hoje") em âmbar no cartão. Para um orçamento a janela conta do que for mais recente — a última mensagem ou a marcação.
 
 ### Marca
 - Ícone do app (24px) ao lado do nome TraceLead na barra lateral e no login.

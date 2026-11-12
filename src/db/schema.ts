@@ -80,7 +80,8 @@ export const clicks = sqliteTable(
 export const ORIGENS = ['anuncio', 'site', 'maps', 'indicacao', 'passou_na_frente', 'desconhecida'] as const;
 export type Origem = (typeof ORIGENS)[number];
 
-export const CONTACT_STATUS = ['aberto', 'vendeu', 'nao_comprou'] as const;
+// "orcamento" is still pending: the store sent a quote and keeps the contact until it ends in vendeu / nao_comprou.
+export const CONTACT_STATUS = ['aberto', 'orcamento', 'vendeu', 'nao_comprou'] as const;
 export type ContactStatus = (typeof CONTACT_STATUS)[number];
 
 export const contacts = sqliteTable(
@@ -104,6 +105,8 @@ export const contacts = sqliteTable(
   (t) => [
     uniqueIndex('contacts_client_phone_idx').on(t.clientId, t.phone),
     index('contacts_client_last_msg_idx').on(t.clientId, t.lastMessageAt),
+    // Lists order by first message; the last-message index above still serves the open-window filters.
+    index('contacts_client_first_msg_idx').on(t.clientId, t.firstMessageAt),
   ],
 );
 

@@ -164,7 +164,7 @@ export async function adminRoutes(app: FastifyInstance, opts: { db: Db; config: 
       .where(
         and(
           eq(contacts.clientId, client.id),
-          gte(contacts.lastMessageAt, Date.now() - SIXTY_DAYS),
+          gte(contacts.firstMessageAt, Date.now() - SIXTY_DAYS),
           filtro === 'desconhecida' ? eq(contacts.origem, 'desconhecida') : undefined,
         ),
       )

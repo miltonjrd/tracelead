@@ -1,7 +1,7 @@
-import { and, count, desc, eq, gte, inArray, like, ne, or } from 'drizzle-orm';
+import { and, count, desc, eq, gte, inArray, like, lt, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { contacts, ORIGENS, sales, type Client, type Contact, type Origem, type Sale } from '../db/schema.js';
-import { DAY_MS, fromLocal, localDate } from '../lib/time.js';
+import { addDays, DAY_MS, fromLocal, isIsoDate, localDate } from '../lib/time.js';
 
 export class PanelError extends Error {}
 
@@ -33,17 +33,26 @@ export interface PanelQuery {
   page?: number;
   size?: number;
   origem?: Origem | '';
+  /** Local "YYYY-MM-DD" bounds on the first message; empty means "the current list". */
+  de?: string;
+  ate?: string;
 }
 
-/** Search text and page number from a request, tolerant of junk. */
-export function parsePanelQuery(q: unknown, page: unknown, size?: unknown, origem?: unknown): Required<PanelQuery> {
-  const n = Number(page);
-  const sz = Number(size);
+/** Search text, period and page number from a request, tolerant of junk. */
+export function parsePanelQuery(raw: Record<string, unknown> = {}): Required<PanelQuery> {
+  const n = Number(raw.pagina);
+  const sz = Number(raw.por);
+  // An inverted period ("de" after "ate") is read in the order the user meant.
+  let de = isIsoDate(raw.de) ? raw.de : '';
+  let ate = isIsoDate(raw.ate) ? raw.ate : '';
+  if (de && ate && de > ate) [de, ate] = [ate, de];
   return {
-    q: typeof q === 'string' ? q.trim().slice(0, 80) : '',
+    q: typeof raw.q === 'string' ? raw.q.trim().slice(0, 80) : '',
     page: Number.isInteger(n) && n > 0 ? n : 1,
     size: (PAGE_SIZES as readonly number[]).includes(sz) ? sz : PAGE_SIZE,
-    origem: isOrigem(origem) ? origem : '',
+    origem: isOrigem(raw.origem) ? raw.origem : '',
+    de,
+    ate,
   };
 }
 
@@ -54,12 +63,21 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
   const search = q
     ? or(like(contacts.name, `%${q}%`), digits ? like(contacts.phone, `%${digits}%`) : undefined)
     : undefined;
+  const origem = query.origem ? eq(contacts.origem, query.origem) : undefined;
+  // A period is an explicit request for old days: it replaces the 7-day window and today's ledger,
+  // and it cuts by the date of contact (the first message), the same date the lists are ordered by.
+  const de = query.de || '';
+  const ate = query.ate || '';
+  const periodo = de || ate ? and(
+    de ? gte(contacts.firstMessageAt, fromLocal(de, client.timezone)) : undefined,
+    ate ? lt(contacts.firstMessageAt, fromLocal(addDays(ate, 1), client.timezone)) : undefined,
+  ) : undefined;
   const open = and(
     eq(contacts.clientId, client.id),
     eq(contacts.status, 'aberto'),
-    gte(contacts.lastMessageAt, now - OPEN_WINDOW_MS),
+    periodo ?? gte(contacts.lastMessageAt, now - OPEN_WINDOW_MS),
     search,
-    query.origem ? eq(contacts.origem, query.origem) : undefined,
+    origem,
   );
   const [{ total }] = await db.select({ total: count() }).from(contacts).where(open);
   const size = query.size ?? PAGE_SIZE;
@@ -69,18 +87,41 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
     .select()
     .from(contacts)
     .where(open)
-    .orderBy(desc(contacts.lastMessageAt))
+    .orderBy(desc(contacts.firstMessageAt))
     .limit(size)
     .offset((page - 1) * size);
+  // A quote keeps its own list: still to be decided, but out of the way of the untouched contacts.
+  // The window restarts when the quote is marked, so a slow answer does not drop it off the list.
+  const orcamentos = await db
+    .select()
+    .from(contacts)
+    .where(
+      and(
+        eq(contacts.clientId, client.id),
+        eq(contacts.status, 'orcamento'),
+        periodo ?? gte(sql`max(${contacts.lastMessageAt}, ${contacts.statusAt})`, now - OPEN_WINDOW_MS),
+        search,
+        origem,
+      ),
+    )
+    .orderBy(desc(contacts.firstMessageAt));
   const resolvidos = await db
     .select()
     .from(contacts)
     .where(
-      and(eq(contacts.clientId, client.id), ne(contacts.status, 'aberto'), gte(contacts.statusAt, startOfToday)),
+      // The search box and the origem filter narrow every list, so a marked contact stays findable.
+      and(
+        eq(contacts.clientId, client.id),
+        inArray(contacts.status, ['vendeu', 'nao_comprou']),
+        periodo ?? gte(contacts.statusAt, startOfToday),
+        search,
+        origem,
+      ),
     )
-    .orderBy(desc(contacts.statusAt));
+    .orderBy(periodo ? desc(contacts.firstMessageAt) : desc(contacts.statusAt));
   return {
     pendentes: await withLastSales(db, pendentes),
+    orcamentos: await withLastSales(db, orcamentos),
     resolvidos: await withLastSales(db, resolvidos),
     total,
     page,
@@ -88,6 +129,8 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
     size,
     q,
     origem: query.origem ?? '',
+    de,
+    ate,
   };
 }
 
@@ -130,12 +173,20 @@ export async function markSold(
   });
 }
 
+/** Sets the contact aside as a pending quote; it still has to end in "vendeu" or "não comprou". */
+export async function markBudget(db: Db, clientId: number, contactId: number, now = Date.now()): Promise<void> {
+  const contact = await requireContact(db, clientId, contactId);
+  if (contact.status === 'vendeu') throw new PanelError('Esse contato já foi marcado como vendeu. Desfaça a venda primeiro.');
+  if (contact.status === 'orcamento') return;
+  await db.update(contacts).set({ status: 'orcamento', statusAt: now }).where(eq(contacts.id, contactId));
+}
+
 export async function markNotBought(db: Db, clientId: number, contactId: number, now = Date.now()): Promise<void> {
   await requireContact(db, clientId, contactId);
   await db.update(contacts).set({ status: 'nao_comprou', statusAt: now }).where(eq(contacts.id, contactId));
 }
 
-/** Undoes today's "vendeu" / "não comprou". A sale already sent to Google Ads can only be fixed by the admin. */
+/** Undoes "vendeu" / "não comprou" / "orçamento". A sale already sent to Google Ads can only be fixed by the admin. */
 export async function reopen(db: Db, clientId: number, contactId: number, now = Date.now()): Promise<void> {
   const contact = await requireContact(db, clientId, contactId);
   if (contact.status === 'aberto') return;

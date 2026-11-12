@@ -134,8 +134,10 @@ export async function handleInboundMessage(db: Db, client: Client, msg: InboundM
   }
   // A message on a later day than the last "vendeu"/"não comprou" puts the contact back in the
   // client's list, so repeat purchases get marked too. Same-day messages ("obrigado!") don't.
+  // A pending quote is not reopened: it stays in "Orçamentos" until the store decides it.
   if (
     existing.status !== 'aberto' &&
+    existing.status !== 'orcamento' &&
     localDate(msg.timestamp, client.timezone) > localDate(existing.statusAt, client.timezone)
   ) {
     set.status = 'aberto';

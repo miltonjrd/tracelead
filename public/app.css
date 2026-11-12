@@ -528,6 +528,7 @@ summary:focus-visible,
   color: var(--info-text);
 }
 
+.badge-orcamento,
 .badge-warn {
   background: var(--warn-bg);
   color: var(--warn-text);
@@ -1197,4 +1198,47 @@ tbody tr:last-child td {
 .search select {
   flex: none;
   max-width: 11rem;
+}
+
+/* Period filter: the two dates wrap as one block, with ready-made ranges under the form. */
+.search {
+  flex-wrap: wrap;
+}
+
+.search-period {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.search-period input {
+  flex: none;
+  min-height: 36px;
+}
+
+.period-shortcuts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 3px;
+  margin: -8px 0 16px;
+}
+
+.period-link {
+  padding: 6px 12px;
+  border-radius: 8px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.period-link.active {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: var(--shadow);
 }

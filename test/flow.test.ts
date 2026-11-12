@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { eq } from 'drizzle-orm';
 import { clicks, clients, contacts, sales } from '../src/db/schema.js';
-import { fromLocal, localDate } from '../src/lib/time.js';
+import { addDays, formatDateBr, fromLocal, localDate } from '../src/lib/time.js';
 import { handleInboundMessage } from '../src/services/tracking.js';
 import { form, login, postWebhook, setup, waPayload } from './helpers.js';
 
@@ -175,6 +175,90 @@ test('contato volta para a lista quando escreve num dia seguinte', async () => {
   assert.equal(c?.name, 'Maria');
 });
 
+test('orçamento separa o contato sem fechar a venda', async () => {
+  const ctx = await setup();
+  const contact = await clickAndMessage(ctx);
+  const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
+  const hx = { 'hx-request': 'true' };
+  const get = () => ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
+
+  const marcado = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/orcamento`, ...form(cookie, {}, hx) });
+  assert.match(marcado.body, /Contatos <span class="count">0<\/span>/);
+  assert.match(marcado.body, /Orçamentos <span class="count">1<\/span>/);
+  assert.doesNotMatch(marcado.body, /Marcados hoje/, 'orçamento não é uma marcação do dia');
+  assert.match(marcado.body, /class="contact-row moved"/);
+  assert.equal((await ctx.db.query.contacts.findFirst())?.status, 'orcamento');
+
+  const lista = await get();
+  // Ainda decidível: Vendeu e Não comprou continuam no cartão; o botão Orçamento sai.
+  assert.match(lista.body, /badge-orcamento/);
+  assert.match(lista.body, /Vendeu<\/button>/);
+  assert.match(lista.body, /Não comprou<\/button>/);
+  assert.doesNotMatch(lista.body, />Orçamento<\/button>/);
+  assert.match(lista.body, /Tirar do orçamento/);
+
+  // Uma mensagem no dia seguinte não tira o contato dos orçamentos.
+  const tz = ctx.client.timezone;
+  await ctx.db.update(contacts).set({ statusAt: fromLocal('2026-10-29', tz, '10:00') }).where(eq(contacts.id, contact.id));
+  await handleInboundMessage(ctx.db, ctx.client, { from: LEAD_PHONE, name: null, timestamp: fromLocal('2026-10-30', tz, '09:00'), ref: null });
+  assert.equal((await ctx.db.query.contacts.findFirst())?.status, 'orcamento');
+
+  const vendeu = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/venda`, ...form(cookie, { valor: '150' }, hx) });
+  assert.doesNotMatch(vendeu.body, /Orçamentos <span class="count">/);
+  assert.match(vendeu.body, /Marcados hoje <span class="count">1<\/span>/);
+  assert.match(vendeu.body, /Total do dia · 1 venda/);
+
+  const jaVendido = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/orcamento`, ...form(cookie, {}, hx) });
+  assert.match(jaVendido.body, /Desfaça a venda primeiro/);
+});
+
+test('filtro de datas mostra contatos de dias anteriores', async () => {
+  const ctx = await setup();
+  const tz = ctx.client.timezone;
+  const now = Date.now();
+  const hoje = localDate(now, tz);
+  const ontem = addDays(hoje, -1);
+  const velho = addDays(hoje, -20);
+  await ctx.db.insert(contacts).values([
+    { clientId: ctx.client.id, phone: '+5511900001111', name: 'Contato de Hoje', firstMessageAt: now - 60_000, lastMessageAt: now - 60_000, origem: 'desconhecida' as const, status: 'aberto' as const, statusAt: now },
+    { clientId: ctx.client.id, phone: '+5511900002222', name: 'Contato de Ontem', firstMessageAt: fromLocal(ontem, tz, '10:00'), lastMessageAt: fromLocal(ontem, tz, '10:00'), origem: 'desconhecida' as const, status: 'aberto' as const, statusAt: fromLocal(ontem, tz, '10:00') },
+    { clientId: ctx.client.id, phone: '+5511900003333', name: 'Contato Antigo', firstMessageAt: fromLocal(velho, tz, '10:00'), lastMessageAt: fromLocal(velho, tz, '10:00'), origem: 'desconhecida' as const, status: 'vendeu' as const, statusAt: fromLocal(velho, tz, '18:00') },
+  ]);
+  const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
+  const get = (url: string) => ctx.app.inject({ method: 'GET', url, headers: { cookie } });
+
+  // Sem filtro: só a janela de 7 dias, e nada marcado em dia anterior.
+  const atual = await get('/painel');
+  assert.match(atual.body, /Contato de Hoje/);
+  assert.doesNotMatch(atual.body, /Contato Antigo/);
+
+  const soOntem = await get(`/painel?de=${ontem}&ate=${ontem}`);
+  assert.match(soOntem.body, /Contato de Ontem/);
+  assert.doesNotMatch(soOntem.body, /Contato de Hoje/);
+  assert.match(soOntem.body, new RegExp(`Contatos de ${formatDateBr(ontem)}`));
+  assert.doesNotMatch(soOntem.body, /Sai da lista/, 'fora da janela não ganha aviso de expiração');
+
+  // Um dia marcado há 20 dias volta no caderno, com total do período.
+  const antigo = await get(`/painel?de=${velho}&ate=${velho}`);
+  assert.match(antigo.body, /Marcados <span class="count">1<\/span>/);
+  assert.match(antigo.body, /Contato Antigo/);
+  assert.doesNotMatch(antigo.body, /Marcados hoje/);
+
+  // Período invertido é lido na ordem certa; data inválida é ignorada.
+  const invertido = await get(`/painel?de=${hoje}&ate=${ontem}`);
+  assert.match(invertido.body, /Contato de Ontem/);
+  assert.match(invertido.body, /Contato de Hoje/);
+  const junk = await get('/painel?de=ontem&ate=');
+  assert.doesNotMatch(junk.body, /Contato Antigo/);
+
+  // O atalho de 30 dias fica marcado e a busca continua valendo dentro do período.
+  const trinta = await get(`/painel?de=${addDays(hoje, -29)}&ate=${hoje}`);
+  assert.match(trinta.body, /class="period-link active"[^>]*>30 dias/);
+  const comBusca = await get(`/painel?q=antigo&de=${addDays(hoje, -29)}&ate=${hoje}`);
+  assert.match(comBusca.body, /Contato Antigo/);
+  assert.doesNotMatch(comBusca.body, /Contato de Hoje/);
+});
+
 test('health e backup', async () => {
   const ctx = await setup();
   assert.equal((await ctx.app.inject({ method: 'GET', url: '/health' })).statusCode, 200);
@@ -297,4 +381,31 @@ test('painel pesquisa por nome ou telefone e pagina a lista de contatos', async 
 
   const none = await get('/painel?q=zzz');
   assert.match(none.body, /Nenhum contato encontrado/);
+});
+
+test('pesquisa alcança também os marcados hoje', async () => {
+  const ctx = await setup();
+  const now = Date.now();
+  await ctx.db.insert(contacts).values([
+    { clientId: ctx.client.id, phone: '+5511900001111', name: 'Joaquina Silva', firstMessageAt: now - 120_000, lastMessageAt: now - 120_000, origem: 'desconhecida' as const, status: 'aberto' as const, statusAt: now },
+    { clientId: ctx.client.id, phone: '+5511900002222', name: 'Outro Cliente', firstMessageAt: now - 60_000, lastMessageAt: now - 60_000, origem: 'desconhecida' as const, status: 'aberto' as const, statusAt: now },
+  ]);
+  const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
+  const get = (url: string) => ctx.app.inject({ method: 'GET', url, headers: { cookie } });
+  const joaquina = (await ctx.db.select().from(contacts).where(eq(contacts.phone, '+5511900001111')))[0]!;
+
+  await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${joaquina.id}/nao-comprou`, ...form(cookie, {}) });
+
+  const achada = await get('/painel?q=joaquina');
+  assert.match(achada.body, /Marcados hoje <span class="count">1<\/span>/);
+  assert.match(achada.body, /Joaquina Silva/);
+  assert.match(achada.body, /Nenhum contato em aberto para “joaquina”/);
+
+  // A marca de outra pessoa não vaza na pesquisa.
+  const outra = await get('/painel?q=outro');
+  assert.doesNotMatch(outra.body, /Marcados hoje/);
+  assert.match(outra.body, /class="contact-row/);
+
+  const porOrigem = await get('/painel?origem=maps');
+  assert.doesNotMatch(porOrigem.body, /Joaquina Silva/);
 });

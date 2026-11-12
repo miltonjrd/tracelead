@@ -9,6 +9,7 @@ import {
   isOrigem,
   listPanel,
   parsePanelQuery,
+  markBudget,
   markNotBought,
   markSold,
   PanelError,
@@ -35,19 +36,18 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
     return client;
   }
 
-  /** Search and page of the list the user is looking at; marks re-render it from the page's own URL. */
+  /** Search, period and page of the list the user is looking at; marks re-render it from the page's own URL. */
   function listQuery(req: FastifyRequest) {
     const current = req.headers['hx-current-url'];
     if (typeof current === 'string') {
       try {
         const sp = new URL(current).searchParams;
-        return parsePanelQuery(sp.get('q'), sp.get('pagina'), sp.get('por'), sp.get('origem'));
+        return parsePanelQuery(Object.fromEntries(sp));
       } catch {
         /* fall through */
       }
     }
-    const query = req.query as Record<string, unknown>;
-    return parsePanelQuery(query?.q, query?.pagina, query?.por, query?.origem);
+    return parsePanelQuery((req.query ?? {}) as Record<string, unknown>);
   }
 
   app.get('/painel', async (req, reply) => {
@@ -134,7 +134,7 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
       const row = await getPanelRow(db, client.id, contactId);
       if (!row) return reply.code(404).send('Contato não encontrado');
       const body =
-        row.contact.status === 'aberto'
+        row.contact.status === 'aberto' || row.contact.status === 'orcamento'
           ? contactCard(row, client, Date.now(), error).value
           : ledgerRow(row, client, error).value;
       // A card swap that succeeded (origin change) still reports, so focus and screen readers are not left behind.
@@ -151,6 +151,10 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
     if (cents === null) throw new PanelError('Digite o valor da venda, por exemplo 150 ou 1.250,90.');
     await markSold(db, client.id, id, cents, req.user!.id);
     return `Venda de ${formatMoney(cents, client.currency)} registrada.`;
+  }, { moves: true, undoable: true });
+  action('/painel/contatos/:id/orcamento', async (client, id) => {
+    await markBudget(db, client.id, id);
+    return 'Contato movido para "Orçamentos".';
   }, { moves: true, undoable: true });
   action('/painel/contatos/:id/nao-comprou', async (client, id) => {
     await markNotBought(db, client.id, id);

@@ -6,7 +6,7 @@ import type { WeeklyReport } from '../services/report.js';
 import type { HealthReason } from '../services/connectionHealth.js';
 import type { SessionStatus } from '../services/whatsappSessions.js';
 import { healthNote } from './whatsapp.js';
-import { ORIGEM_LABEL } from './labels.js';
+import { ORIGEM_LABEL, STATUS_LABEL } from './labels.js';
 import { ORIGENS } from '../db/schema.js';
 
 type Section = 'relatorio' | 'contatos' | 'vendas' | 'exportacoes' | 'sistema';
@@ -196,7 +196,7 @@ export function contactsPage(
               <td><strong>${c.name ?? ''}</strong> <span class="muted nowrap">${formatPhone(c.phone)}</span></td>
               <td>${dateTime(c.firstMessageAt, client)}</td>
               <td>${c.clickId ? (gclid ? 'clique + gclid' : 'clique sem gclid') : '—'}</td>
-              <td>${c.status === 'aberto' ? 'Aberto' : c.status === 'vendeu' ? 'Vendeu' : 'Não comprou'}</td>
+              <td>${STATUS_LABEL[c.status]}</td>
               <td><form method="post" action="${action}" class="inline">
                 <select name="origem" aria-label="Origem">${ORIGENS.map(
                   (o) => html`<option value="${o}"${o === c.origem ? ' selected' : ''}>${ORIGEM_LABEL[o]}</option>`,

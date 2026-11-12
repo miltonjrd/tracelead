@@ -30,7 +30,8 @@ function hx(action: string, id: number) {
 /** Open contacts leave the list after OPEN_WINDOW_MS; say so before a forgotten one is lost. */
 function expiry(lastMessageAt: number, now: number): SafeHtml | '' {
   const left = lastMessageAt + OPEN_WINDOW_MS - now;
-  if (left > 2 * DAY_MS) return '';
+  // Already past the window: it only shows up under a date filter, where the warning would be a lie.
+  if (left <= 0 || left > 2 * DAY_MS) return '';
   const label = left < DAY_MS ? 'Sai da lista hoje' : `Sai da lista em ${Math.ceil(left / DAY_MS)} dias`;
   return html` · <span class="expiry">${label}</span>`;
 }
@@ -51,7 +52,8 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
   const title = c.name ?? formatPhone(c.phone);
 
   let actions: SafeHtml;
-  if (c.status === 'aberto') {
+  // "orcamento" is still undecided: same card, minus the button that put it there.
+  if (c.status === 'aberto' || c.status === 'orcamento') {
     actions = html`<div class="actions">
       <button class="btn btn-primary" type="button" data-modal-open="venda-modal-${c.id}">Vendeu</button>
       <dialog class="modal" id="venda-modal-${c.id}" aria-labelledby="venda-title-${c.id}"${error ? ' data-autoopen' : ''}>
@@ -66,9 +68,17 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
           </div>
         </form>
       </dialog>
+      ${c.status === 'aberto'
+        ? html`<form ${hx(`${base}/orcamento`, c.id)}>
+            <button class="btn btn-secondary" type="submit">Orçamento</button>
+          </form>`
+        : ''}
       <form ${hx(`${base}/nao-comprou`, c.id)}>
         <button class="btn btn-secondary" type="submit">Não comprou</button>
       </form>
+      ${c.status === 'orcamento'
+        ? html`<form ${hx(`${base}/reabrir`, c.id)} class="inline"><button class="btn-link" type="submit">Tirar do orçamento</button></form>`
+        : ''}
     </div>`;
   } else {
     const label =
@@ -101,20 +111,26 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
       </dialog>`;
 
   const arrived = `${when(c.firstMessageAt, client, now)}${c.lastMessageAt - c.firstMessageAt > 60_000 ? ` · última: ${when(c.lastMessageAt, client, now).toLowerCase()}` : ''}`;
+  // A quote restarts the 7-day window, so it is the mark — not the last message — that dates it.
+  const quote =
+    c.status === 'orcamento'
+      ? html` · <span class="badge badge-orcamento">Orçamento ${when(c.statusAt, client, now).toLowerCase()}</span>`
+      : '';
+  const alive = c.status === 'orcamento' ? Math.max(c.lastMessageAt, c.statusAt) : c.lastMessageAt;
   return html`<tr class="contact-row${moved ? ' moved' : ''}" id="contato-${c.id}">
     <td data-label="Contato">
       <strong>${title}</strong>
       ${c.name ? html`<a class="muted phone" href="https://wa.me/${c.phone.slice(1)}">${formatPhone(c.phone)}</a>` : ''}
     </td>
     <td data-label="Origem"><span class="badge badge-${c.origem}">${ORIGEM_LABEL[c.origem]}</span>${origem}</td>
-    <td data-label="Data de contato" class="meta">${arrived}${expiry(c.lastMessageAt, now)}</td>
+    <td data-label="Data de contato" class="meta">${arrived}${quote}${expiry(alive, now)}</td>
     <td data-label="Ação">
       ${actions}
     </td>
   </tr>`;
 }
 
-export type PanelData = { pendentes: PanelRow[]; resolvidos: PanelRow[]; total: number; page: number; pages: number; size: number; q: string; origem: Origem | '' };
+export type PanelData = { pendentes: PanelRow[]; orcamentos: PanelRow[]; resolvidos: PanelRow[]; total: number; page: number; pages: number; size: number; q: string; origem: Origem | ''; de: string; ate: string };
 
 /** A marked contact is one ruled line of the day's ledger: who, what, how much, undo. */
 export function ledgerRow(row: PanelRow, client: Client, error?: string, moved = false): SafeHtml {
@@ -133,17 +149,27 @@ export function ledgerRow(row: PanelRow, client: Client, error?: string, moved =
   </li>`;
 }
 
-function dayTotal(resolvidos: PanelRow[], client: Client): SafeHtml | '' {
+function dayTotal(resolvidos: PanelRow[], client: Client, periodo = false): SafeHtml | '' {
   const sold = resolvidos.filter((r) => r.contact.status === 'vendeu' && r.lastSale);
   if (!sold.length) return '';
   const total = sold.reduce((sum, r) => sum + r.lastSale!.valorCentavos, 0);
-  return html`<li class="ledger-total"><span>Total do dia · ${sold.length} ${sold.length === 1 ? 'venda' : 'vendas'}</span><strong class="num">${formatMoney(total, client.currency)}</strong></li>`;
+  return html`<li class="ledger-total"><span>Total do ${periodo ? 'período' : 'dia'} · ${sold.length} ${sold.length === 1 ? 'venda' : 'vendas'}</span><strong class="num">${formatMoney(total, client.currency)}</strong></li>`;
+}
+
+/** "de 01/11/2026 a 05/11/2026", or an open end when only one of the dates is set. */
+function periodLabel(data: Pick<PanelData, 'de' | 'ate'>): string {
+  if (data.de && data.ate) return data.de === data.ate ? `de ${formatDateBr(data.de)}` : `de ${formatDateBr(data.de)} a ${formatDateBr(data.ate)}`;
+  if (data.de) return `a partir de ${formatDateBr(data.de)}`;
+  if (data.ate) return `até ${formatDateBr(data.ate)}`;
+  return '';
 }
 
 function listHref(data: PanelData, page: number): string {
   const params = new URLSearchParams();
   if (data.q) params.set('q', data.q);
   if (data.origem) params.set('origem', data.origem);
+  if (data.de) params.set('de', data.de);
+  if (data.ate) params.set('ate', data.ate);
   if (page > 1) params.set('pagina', String(page));
   if (data.size !== PAGE_SIZE) params.set('por', String(data.size));
   const qs = params.toString();
@@ -174,6 +200,8 @@ function pagination(data: PanelData): SafeHtml | '' {
     <form class="pager-size" method="get" action="/painel">
       ${data.q ? html`<input type="hidden" name="q" value="${data.q}">` : ''}
       ${data.origem ? html`<input type="hidden" name="origem" value="${data.origem}">` : ''}
+      ${data.de ? html`<input type="hidden" name="de" value="${data.de}">` : ''}
+      ${data.ate ? html`<input type="hidden" name="ate" value="${data.ate}">` : ''}
       <label for="por">Por página</label>
       <select id="por" name="por" data-autosubmit>
         ${PAGE_SIZES.map((n) => html`<option value="${n}"${n === data.size ? ' selected' : ''}>${n}</option>`)}
@@ -191,7 +219,7 @@ function pagination(data: PanelData): SafeHtml | '' {
   </div>`;
 }
 
-/** The two lists share one swap target so a mark moves the contact and refreshes both counts. */
+/** The lists share one swap target so a mark moves the contact and refreshes every count. */
 export function contactLists(
   data: PanelData,
   client: Client,
@@ -199,8 +227,21 @@ export function contactLists(
   opts: { movedId?: number; whatsappOff?: boolean; firstRun?: boolean } = {},
 ): SafeHtml {
   const card = (r: PanelRow) => contactCard(r, client, now, undefined, r.contact.id === opts.movedId);
-  const empty = data.q || data.origem
-    ? html`<p class="empty">Nenhum contato encontrado${data.q ? html` para “${data.q}”` : ''}${data.origem ? html` com origem ${ORIGEM_LABEL[data.origem]}` : ''}.</p>`
+  const criteria = html`${data.q ? html` para “${data.q}”` : ''}${data.origem ? html` com origem ${ORIGEM_LABEL[data.origem]}` : ''}${periodLabel(data) ? html` ${periodLabel(data)}` : ''}`;
+  const periodo = !!(data.de || data.ate);
+  const marcados = periodo ? 'Marcados' : 'Marcados hoje';
+  const elsewhere = data.orcamentos.length
+    ? data.resolvidos.length
+      ? `“Orçamentos” e “${marcados}”`
+      : '“Orçamentos”'
+    : data.resolvidos.length
+      ? `“${marcados}”`
+      : '';
+  const empty = data.q || data.origem || periodo
+    ? // The same search runs over the other lists; say where the match is instead of "nothing found".
+      elsewhere
+      ? html`<p class="empty">Nenhum contato em aberto${criteria}. O resultado está em ${elsewhere}.</p>`
+      : html`<p class="empty">Nenhum contato encontrado${criteria}.</p>`
     : opts.whatsappOff
     ? html`<p class="empty">Conecte o WhatsApp para começar. Os contatos só chegam depois da conexão.</p>`
     : opts.firstRun
@@ -208,13 +249,22 @@ export function contactLists(
       : html`<p class="empty">Tudo marcado. Novos contatos do WhatsApp aparecem aqui.</p>`;
   return html`<div id="painel-lista">
     <h2 class="section-title">Contatos <span class="count">${data.total}</span></h2>
+    ${periodo ? html`<p class="muted small">Contatos ${periodLabel(data)}, pela data do primeiro contato. <a class="btn-link" href="/painel">Voltar para hoje</a></p>` : ''}
     ${data.pendentes.length ? html`<table class="contacts">
       <thead><tr><th scope="col">Contato</th><th scope="col">Origem</th><th scope="col">Data de contato</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead>
       <tbody>${data.pendentes.map(card)}</tbody>
     </table>${pagination(data)}` : empty}
+    ${data.orcamentos.length
+      ? html`<h2 class="section-title">Orçamentos <span class="count">${data.orcamentos.length}</span></h2>
+          <p class="muted small">Esperando resposta. Ainda precisam de Vendeu ou Não comprou.</p>
+          <table class="contacts">
+            <thead><tr><th scope="col">Contato</th><th scope="col">Origem</th><th scope="col">Data de contato</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead>
+            <tbody>${data.orcamentos.map(card)}</tbody>
+          </table>`
+      : ''}
     ${data.resolvidos.length
-      ? html`<h2 class="section-title">Marcados hoje <span class="count">${data.resolvidos.length}</span></h2>
-          <ol class="ledger">${data.resolvidos.map((r) => ledgerRow(r, client, undefined, r.contact.id === opts.movedId))}${dayTotal(data.resolvidos, client)}</ol>`
+      ? html`<h2 class="section-title">${marcados} <span class="count">${data.resolvidos.length}</span></h2>
+          <ol class="ledger">${data.resolvidos.map((r) => ledgerRow(r, client, undefined, r.contact.id === opts.movedId))}${dayTotal(data.resolvidos, client, periodo)}</ol>`
       : ''}
   </div>`;
 }
@@ -246,6 +296,27 @@ function connectionChip(client: Client, status?: SessionStatus, health?: HealthR
   }
 }
 
+/** Ready-made periods, so seeing an earlier day is one tap and not two date pickers. */
+function periodShortcuts(data: PanelData, today: string): SafeHtml {
+  const options: { label: string; de: string; ate: string }[] = [
+    { label: 'Hoje', de: '', ate: '' },
+    { label: 'Ontem', de: addDays(today, -1), ate: addDays(today, -1) },
+    { label: '7 dias', de: addDays(today, -6), ate: today },
+    { label: '30 dias', de: addDays(today, -29), ate: today },
+  ];
+  return html`${options.map((o) => {
+    const active = data.de === o.de && data.ate === o.ate;
+    const params = new URLSearchParams();
+    if (data.q) params.set('q', data.q);
+    if (data.origem) params.set('origem', data.origem);
+    if (data.size !== PAGE_SIZE) params.set('por', String(data.size));
+    if (o.de) params.set('de', o.de);
+    if (o.ate) params.set('ate', o.ate);
+    const qs = params.toString();
+    return html`<a class="period-link${active ? ' active' : ''}" href="/painel${qs ? `?${qs}` : ''}"${active ? html` aria-current="true"` : ''}>${o.label}</a>`;
+  })}`;
+}
+
 export function panelPage(
   data: PanelData,
   client: Client,
@@ -254,6 +325,7 @@ export function panelPage(
   hasContacts = true,
   health?: HealthReason[],
 ): SafeHtml {
+  const today = localDate(now, client.timezone);
   const off = client.whatsappMode === 'baileys' && !!status && status.state !== 'conectado';
   // While (re)connecting the chip already says so; the "disconnected" alert would be wrong.
   const connecting = status?.state === 'conectando' || status?.state === 'reconectando' || status?.state === 'aguardando_qr';
@@ -276,8 +348,17 @@ export function panelPage(
       </select>
       <button class="btn btn-secondary btn-icon" type="submit" aria-label="Pesquisar" title="Pesquisar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
       ${data.size !== PAGE_SIZE ? html`<input type="hidden" name="por" value="${data.size}">` : ''}
-      ${data.q || data.origem ? html`<a class="btn-link" href="/painel">Limpar</a>` : ''}
+      ${data.q || data.origem || data.de || data.ate ? html`<a class="btn-link" href="/painel">Limpar</a>` : ''}
+      <div class="search-period">
+        <label for="de">De</label>
+        <input id="de" type="date" name="de" value="${data.de}" max="${today}">
+        <label for="ate">até</label>
+        <input id="ate" type="date" name="ate" value="${data.ate}" max="${today}">
+      </div>
     </form>
+    <nav class="period-shortcuts" aria-label="Período">
+      ${periodShortcuts(data, today)}
+    </nav>
     ${avisoRegion()}
     ${contactLists(data, client, now, { whatsappOff: off, firstRun: !hasContacts })}
   </section>`;

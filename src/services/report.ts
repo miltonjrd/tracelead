@@ -1,4 +1,4 @@
-import { and, count, eq, gte, lt, max } from 'drizzle-orm';
+import { and, count, eq, gte, inArray, lt, max } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { adSpend, clicks, contacts, sales, type Client, type Click, type Contact, type Origem } from '../db/schema.js';
 import { addDays, DAY_MS, fromLocal, localDate } from '../lib/time.js';
@@ -123,7 +123,8 @@ export async function weeklyReport(db: Db, client: Client, start: string, now = 
     .where(
       and(
         eq(contacts.clientId, client.id),
-        eq(contacts.status, 'aberto'),
+        // A quote still waits for a final mark, so it counts as pending too.
+        inArray(contacts.status, ['aberto', 'orcamento']),
         lt(contacts.lastMessageAt, startOfToday),
         gte(contacts.lastMessageAt, now - 7 * DAY_MS),
       ),
