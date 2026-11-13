@@ -46,6 +46,12 @@ const LOGGED_OUT = 401;
 // Another client opened the same login (a second server, a copied database): WhatsApp drops this one.
 const CONNECTION_REPLACED = 440;
 const RESTART_REQUIRED = 515;
+// A socket that stays "conectado" but hears nothing is reopened with the saved login (no QR). WhatsApp
+// replays what was missed on reconnect, so a quiet store only pays a harmless reconnect every few hours.
+export const SILENT_SOCKET_MAX_MS = 3 * 60 * 60 * 1000;
+// A socket that never reports open or close (hung handshake) would otherwise stay "conectando" forever.
+const SYNC_WARN_MS = 45_000;
+export const CONNECTING_MAX_MS = 3 * 60 * 1000;
 
 const defaultSchedule: Schedule = (fn, ms) => {
   const t = setTimeout(fn, ms);
@@ -61,7 +67,10 @@ interface Session {
   saveChain: Promise<void>;
   cancelRetry?: () => void;
   cancelQr?: () => void;
+  cancelSync?: () => void;
   openedAt?: number;
+  /** When the current socket was requested; for spotting a handshake that never finishes. */
+  openingAt?: number;
   /** Last connection or message event from WhatsApp; for diagnosing a session that is "connected" but silent. */
   lastEventAt?: number;
 }
@@ -181,6 +190,28 @@ export class WhatsAppSessions {
     }
   }
 
+  /** Reopens sessions that look dead without WhatsApp saying so: silent for hours, or stuck connecting. */
+  async watchdog(now = Date.now()): Promise<void> {
+    for (const [clientId, s] of [...this.sessions]) {
+      const { state } = s.status;
+      let why: string | undefined;
+      if (state === 'conectado') {
+        const quietSince = Math.max(s.lastEventAt ?? 0, s.openedAt ?? 0);
+        if (quietSince > 0 && now - quietSince >= SILENT_SOCKET_MAX_MS) why = 'silencio';
+      } else if (state === 'conectando' && s.openingAt !== undefined && now - s.openingAt >= CONNECTING_MAX_MS) {
+        why = 'conexao-travada';
+      }
+      if (!why) continue;
+      this.opts.log.warn({ clientId, why }, 'whatsapp: sessão reaberta pelo watchdog');
+      this.stop(s);
+      s.sock?.end();
+      s.sock = undefined;
+      s.attempt = 0;
+      s.status = { state: 'conectando' };
+      await this.open(clientId, s);
+    }
+  }
+
   /** Closes sessions of clients that are no longer in `baileys` mode (the CLI runs in another process). */
   async reconcile(): Promise<void> {
     for (const [clientId, s] of [...this.sessions]) {
@@ -195,11 +226,13 @@ export class WhatsAppSessions {
     s.gen++;
     s.cancelRetry?.();
     s.cancelQr?.();
-    s.cancelRetry = s.cancelQr = undefined;
+    s.cancelSync?.();
+    s.cancelRetry = s.cancelQr = s.cancelSync = undefined;
   }
 
   private async open(clientId: number, s: Session): Promise<void> {
     const gen = ++s.gen;
+    s.openingAt = Date.now();
     try {
       await s.saveChain;
       const auth = await loadAuthState(this.db, clientId);
@@ -226,6 +259,11 @@ export class WhatsAppSessions {
     sock.ev.on('connection.update', (u) => {
       if (!live()) return;
       if (u.connection || u.qr) s.lastEventAt = Date.now();
+      if (u.receivedPendingNotifications) {
+        s.cancelSync?.();
+        s.cancelSync = undefined;
+        this.opts.log.info({ clientId, afterSec: s.openedAt ? Math.round((Date.now() - s.openedAt) / 1000) : undefined }, 'whatsapp: mensagens pendentes recebidas');
+      }
       if (u.qr) {
         s.status = { state: 'aguardando_qr', qr: u.qr };
         s.cancelQr ??= this.schedule(() => this.expireQr(s), QR_TIMEOUT_MS);
@@ -236,6 +274,12 @@ export class WhatsAppSessions {
         s.attempt = 0;
         s.openedAt = Date.now();
         this.opts.log.info({ clientId }, 'whatsapp: conexão aberta');
+        // WhatsApp normally says it finished delivering what was queued while offline within seconds.
+        s.cancelSync?.();
+        s.cancelSync = this.schedule(() => {
+          s.cancelSync = undefined;
+          if (live()) this.opts.log.warn({ clientId }, 'whatsapp: pendentes não chegaram em 45s após abrir');
+        }, SYNC_WARN_MS);
         const user = sock.user ? jidDecode(sock.user.id)?.user : undefined;
         s.status = { state: 'conectado', phone: user ? `+${user}` : '' };
       }
@@ -246,6 +290,7 @@ export class WhatsAppSessions {
           {
             clientId,
             code,
+            reason: (u.lastDisconnect?.error as Error | undefined)?.message,
             openForSec: s.openedAt ? Math.round((now - s.openedAt) / 1000) : undefined,
             silentForSec: s.lastEventAt ? Math.round((now - s.lastEventAt) / 1000) : undefined,
           },

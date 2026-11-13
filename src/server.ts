@@ -41,5 +41,8 @@ await app.listen({ port: config.port, host: config.host });
 // Sessions open after the server is listening, so a slow WhatsApp never delays /health.
 // The CLI runs in another process; reconcile() picks up a client switched away from Baileys.
 void sessions.startAll();
-reconcileTimer = setInterval(() => void sessions.reconcile().catch((err) => app.log.error(err)), 60_000);
+reconcileTimer = setInterval(() => {
+  void sessions.reconcile().catch((err) => app.log.error(err));
+  void sessions.watchdog().catch((err) => app.log.error(err));
+}, 60_000);
 reconcileTimer.unref();

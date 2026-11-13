@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { openDb } from '../src/db/client.js';
 import { clients, contacts, whatsappAuth } from '../src/db/schema.js';
 import { createClient } from '../src/services/accounts.js';
-import { QR_TIMEOUT_MS, SessionLimitError, WhatsAppSessions } from '../src/services/whatsappSessions.js';
+import { CONNECTING_MAX_MS, QR_TIMEOUT_MS, SILENT_SOCKET_MAX_MS, SessionLimitError, WhatsAppSessions } from '../src/services/whatsappSessions.js';
 import { loadAuthState } from '../src/services/whatsappAuthState.js';
 import { FakeTimers, fakeFactory, settle, silentLog } from './fakeWhatsApp.js';
 
@@ -108,7 +108,7 @@ test('queda de rede reconecta com espera crescente até 60 s', async () => {
     assert.equal(sessions.status(client.id).state, 'reconectando');
     await timers.advance(60_000);
   }
-  assert.deepEqual(timers.delays, [1000, 2000, 4000, 8000, 16000, 32000, 60000, 60000, 60000]);
+  assert.deepEqual(timers.delays.filter((d) => d !== 45_000), [1000, 2000, 4000, 8000, 16000, 32000, 60000, 60000, 60000]);
 
   fake.last().open();
   assert.equal(sessions.status(client.id).state, 'conectado');
@@ -250,5 +250,53 @@ test('reinício acima do limite reabre só até o limite', async () => {
   assert.equal(fake.socks.length, 1);
   assert.equal(sessions.status(client.id).state, 'conectando');
   assert.equal(sessions.status(second.id).state, 'desconectado');
+  assert.equal(log.warns.length, 1);
+});
+
+test('watchdog reabre sessão conectada que ficou muda por horas', async () => {
+  const { sessions, fake, client } = await setup();
+  await sessions.connect(client.id);
+  fake.last().open();
+  const first = fake.last();
+  const t0 = Date.now();
+  await sessions.watchdog(t0 + SILENT_SOCKET_MAX_MS - 1000);
+  assert.equal(fake.socks.length, 1);
+  await sessions.watchdog(t0 + SILENT_SOCKET_MAX_MS + 1000);
+  assert.equal(first.ended, true);
+  assert.equal(fake.socks.length, 2);
+  fake.last().open();
+  assert.equal(sessions.status(client.id).state, 'conectado');
+});
+
+test('watchdog não mexe em sessão que recebeu mensagem recentemente', async () => {
+  const { sessions, fake, client } = await setup();
+  await sessions.connect(client.id);
+  fake.last().open();
+  fake.last().emit('messages.upsert', { messages: [], type: 'notify' });
+  await sessions.watchdog(Date.now() + SILENT_SOCKET_MAX_MS - 60_000);
+  assert.equal(fake.socks.length, 1);
+});
+
+test('watchdog reabre conexão travada em conectando', async () => {
+  const { sessions, fake, client } = await setup();
+  await sessions.connect(client.id);
+  await sessions.watchdog(Date.now() + CONNECTING_MAX_MS + 1000);
+  assert.equal(fake.socks.length, 2);
+  assert.equal(fake.socks[0]!.ended, true);
+});
+
+test('avisa quando os pendentes não chegam em 45s e não avisa quando chegam', async () => {
+  const { sessions, fake, client, log, timers } = await setup();
+  await sessions.connect(client.id);
+  fake.last().open();
+  await timers.advance(46_000);
+  assert.equal(log.warns.length, 1);
+
+  fake.last().close(500);
+  await settle();
+  await timers.advance(2000);
+  fake.last().open();
+  fake.last().emit('connection.update', { receivedPendingNotifications: true });
+  await timers.advance(46_000);
   assert.equal(log.warns.length, 1);
 });
