@@ -1,4 +1,5 @@
 import makeWASocket, { Browsers, fetchLatestWaWebVersion, makeCacheableSignalKeyStore, type AuthenticationState } from 'baileys';
+import { drainOfflineBatches } from './offlineDrain.js';
 import type { SessionLog, SocketFactory } from './whatsappSessions.js';
 
 /** Baileys wants an ILogger (pino-shaped); only warnings and errors are worth keeping. */
@@ -25,7 +26,7 @@ export const createBaileysSocket: SocketFactory = async (auth: AuthenticationSta
   const logger = baileysLogger(log);
   // Falls back to the version bundled in Baileys when the lookup fails or is not the latest.
   const latest = await fetchLatestWaWebVersion().catch(() => undefined);
-  return makeWASocket({
+  const sock = makeWASocket({
     auth: { creds: auth.creds, keys: makeCacheableSignalKeyStore(auth.keys, logger) },
     ...(latest?.isLatest ? { version: latest.version } : {}),
     browser: Browsers.ubuntu('TraceLead'),
@@ -34,4 +35,6 @@ export const createBaileysSocket: SocketFactory = async (auth: AuthenticationSta
     markOnlineOnConnect: false,
     getMessage: async () => undefined,
   });
+  drainOfflineBatches(sock, log);
+  return sock;
 };
