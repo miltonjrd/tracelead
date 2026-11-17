@@ -202,6 +202,23 @@ export const whatsappAuth = sqliteTable(
   (t) => [primaryKey({ columns: [t.clientId, t.key] })],
 );
 
+/**
+ * Phones that already had a 1:1 chat with the store before TraceLead saw them: from the history WhatsApp
+ * sends on pairing, or from asking the phone for a chat's earlier messages. Only the phone is kept.
+ */
+export const knownChats = sqliteTable(
+  'known_chats',
+  {
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    phone: text('phone').notNull(),
+    source: text('source', { enum: ['historico', 'consulta'] }).notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.clientId, t.phone] })],
+);
+
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Click = typeof clicks.$inferSelect;

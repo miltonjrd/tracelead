@@ -18,9 +18,10 @@ function baileysLogger(log: SessionLog) {
 
 /**
  * The only place that talks to Baileys. TraceLead just listens: never marked online (the
- * store keeps getting notifications on the phone), nothing is sent. The default history sync stays
- * on because Baileys gets its first LID mappings from it; its messages arrive in a different event
- * than `messages.upsert`, which is the only one TraceLead handles.
+ * store keeps getting notifications on the phone), nothing is sent to customers. The default history
+ * sync stays on: Baileys gets its first LID mappings from it, and TraceLead records which chats already
+ * existed (`messaging-history.set`) so old customers don't turn into new leads. The only thing sent is
+ * an on-demand history request to the store's own phone, when an unknown number writes without a ref.
  */
 export const createBaileysSocket: SocketFactory = async (auth: AuthenticationState, log) => {
   const logger = baileysLogger(log);

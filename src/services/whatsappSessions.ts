@@ -1,8 +1,9 @@
-import { jidDecode, type AuthenticationState, type BaileysEventEmitter } from 'baileys';
+import { jidDecode, proto, type AuthenticationState, type BaileysEventEmitter } from 'baileys';
 import { and, eq } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { clients } from '../db/schema.js';
-import { processUpsert } from './baileysInbound.js';
+import { processUpsert, recordHistoryChats } from './baileysInbound.js';
+import { createHistoryProbe, type HistoryProbe, type ProbeSocket } from './historyProbe.js';
 import { clearAuthState, loadAuthState } from './whatsappAuthState.js';
 
 export type SessionStatus =
@@ -20,6 +21,8 @@ export interface WaSocket {
   ev: Pick<BaileysEventEmitter, 'on'>;
   user?: { id: string } | undefined;
   signalRepository: { lidMapping: { getPNForLID(lid: string): Promise<string | null> } };
+  /** Asks the store's phone for a chat's earlier messages; absent in fakes that don't test it. */
+  fetchMessageHistory?: ProbeSocket['fetchMessageHistory'];
   end(error?: Error): void;
   logout(): Promise<void>;
 }
@@ -253,6 +256,8 @@ export class WhatsAppSessions {
 
   private listen(clientId: number, s: Session, gen: number, sock: WaSocket, saveCreds: () => Promise<void>) {
     const live = () => s.gen === gen;
+    const fetchMessageHistory = sock.fetchMessageHistory?.bind(sock);
+    const probe = fetchMessageHistory ? createHistoryProbe({ ev: sock.ev, fetchMessageHistory }, this.schedule) : undefined;
     sock.ev.on('creds.update', () => {
       s.saveChain = s.saveChain.then(saveCreds).catch((err) => this.opts.log.error({ err, clientId }, 'falha ao salvar login do WhatsApp'));
     });
@@ -303,8 +308,24 @@ export class WhatsAppSessions {
     sock.ev.on('messages.upsert', (upsert) => {
       if (!live()) return;
       s.lastEventAt = Date.now();
-      void this.onUpsert(clientId, sock, upsert);
+      void this.onUpsert(clientId, sock, upsert, probe);
     });
+    sock.ev.on('messaging-history.set', (set) => {
+      if (!live()) return;
+      s.lastEventAt = Date.now();
+      void this.onHistory(clientId, sock, set);
+    });
+  }
+
+  private async onHistory(clientId: number, sock: WaSocket, set: Parameters<typeof recordHistoryChats>[2] & { syncType?: number | null }) {
+    // ON_DEMAND replies belong to the history probe, which saves its own verdict.
+    if (set.syncType === proto.HistorySync.HistorySyncType.ON_DEMAND) return;
+    try {
+      const added = await recordHistoryChats(this.db, clientId, set, (lid) => sock.signalRepository.lidMapping.getPNForLID(lid));
+      if (added) this.opts.log.info({ clientId, added, syncType: set.syncType }, 'whatsapp: conversas antigas registradas do histórico');
+    } catch (err) {
+      this.opts.log.error({ err, clientId }, 'falha ao registrar conversas antigas do WhatsApp');
+    }
   }
 
   private expireQr(s: Session) {
@@ -354,11 +375,11 @@ export class WhatsAppSessions {
     }, delay);
   }
 
-  private async onUpsert(clientId: number, sock: WaSocket, upsert: Parameters<typeof processUpsert>[2]) {
+  private async onUpsert(clientId: number, sock: WaSocket, upsert: Parameters<typeof processUpsert>[2], probe: HistoryProbe | undefined) {
     try {
       const client = await this.db.query.clients.findFirst({ where: eq(clients.id, clientId) });
       if (!client || client.whatsappMode !== 'baileys' || !client.active) return;
-      await processUpsert(this.db, client, upsert, (lid) => sock.signalRepository.lidMapping.getPNForLID(lid), this.opts.log);
+      await processUpsert(this.db, client, upsert, (lid) => sock.signalRepository.lidMapping.getPNForLID(lid), this.opts.log, Date.now(), probe);
     } catch (err) {
       this.opts.log.error({ err, clientId }, 'falha ao processar mensagens do WhatsApp');
     }

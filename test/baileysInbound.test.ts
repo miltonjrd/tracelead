@@ -12,7 +12,7 @@ const now = Date.now();
 
 function makeLog() {
   const warns: { obj: Record<string, unknown>; msg: string }[] = [];
-  return { warns, warn: (obj: object, msg: string) => void warns.push({ obj: obj as Record<string, unknown>, msg }), error: () => {} };
+  return { warns, info: () => {}, warn: (obj: object, msg: string) => void warns.push({ obj: obj as Record<string, unknown>, msg }), error: () => {} };
 }
 
 function msg(over: { jid?: string; alt?: string; fromMe?: boolean; text?: string; name?: string; id?: string; ts?: number }): WAMessage {
