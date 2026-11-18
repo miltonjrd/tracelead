@@ -95,6 +95,16 @@ test('append: ignora histórico antigo e aceita o que chegou nas últimas 24h', 
   assert.equal(c?.firstMessageAt, now - 3 * 60 * 60 * 1000 - ((now - 3 * 60 * 60 * 1000) % 1000));
 });
 
+test('notify: mensagem de 2 anos atrás (conversa reentregue pelo WhatsApp) não vira contato, nem com ref', async () => {
+  const { db, client, log, noLid } = await setupClient();
+  const twoYears = now - 730 * 24 * 60 * 60 * 1000;
+  await processUpsert(db, client, { type: 'notify', messages: [msg({ id: 'O1', ts: twoYears }), msg({ id: 'O2', ts: twoYears, text: 'Olá! (ref. AB2CD)' })] }, noLid, log, now);
+  assert.equal((await db.select().from(contacts)).length, 0);
+
+  await processUpsert(db, client, { type: 'notify', messages: [msg({ id: 'N1', ts: now - 2 * 24 * 60 * 60 * 1000 })] }, noLid, log, now);
+  assert.equal((await db.select().from(contacts)).length, 1);
+});
+
 test('append: mensagem enviada por nós e mensagem sem data não viram contato', async () => {
   const { db, client, log, noLid } = await setupClient();
   const noDate = { ...msg({ id: 'ND' }), messageTimestamp: undefined } as WAMessage;

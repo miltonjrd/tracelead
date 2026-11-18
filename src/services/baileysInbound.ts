@@ -54,6 +54,11 @@ async function senderPhone(m: WAMessage, lookup: LidLookup): Promise<string | nu
 // `append` carries history and what arrived while the socket was down. Only the last day counts:
 // enough to recover leads from a short outage without importing old chats as new contacts.
 const APPEND_MAX_AGE_MS = DAY_MS;
+// `notify` is live traffic, but WhatsApp also redelivers old messages that way (the offline queue, and the
+// assistant that re-reads old chats). A few days cover a long outage; anything older is not a new lead.
+const NOTIFY_MAX_AGE_MS = 7 * DAY_MS;
+
+const maxAgeMs = (type: MessageUpsertType) => (type === 'append' ? APPEND_MAX_AGE_MS : NOTIFY_MAX_AGE_MS);
 
 const isOneToOne = (jid: string) => isPnUser(jid) || isLidUser(jid);
 
@@ -125,7 +130,10 @@ export async function processUpsert(
   const byPhone = new Map<string, WAMessage[]>();
   for (const m of upsert.messages) {
     try {
-      if (upsert.type === 'append' && !(now - Number(m.messageTimestamp) * 1000 <= APPEND_MAX_AGE_MS)) continue;
+      // A message without a date is let through (as before); one with an old date is dropped, ref or not.
+      const sentAt = Number(m.messageTimestamp) * 1000;
+      if (Number.isFinite(sentAt) && sentAt > 0 && now - sentAt > maxAgeMs(upsert.type)) continue;
+      if (upsert.type === 'append' && !(now - sentAt <= APPEND_MAX_AGE_MS)) continue;
       const jid = m.key.remoteJid;
       if (!jid || m.key.fromMe || isJidGroup(jid) || isJidBroadcast(jid) || isJidNewsletter(jid)) continue;
       const phone = await senderPhone(m, lookupPn);
