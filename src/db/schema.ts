@@ -80,9 +80,23 @@ export const clicks = sqliteTable(
 export const ORIGENS = ['anuncio', 'site', 'maps', 'indicacao', 'passou_na_frente', 'desconhecida'] as const;
 export type Origem = (typeof ORIGENS)[number];
 
-// "orcamento" is still pending: the store sent a quote and keeps the contact until it ends in vendeu / nao_comprou.
-export const CONTACT_STATUS = ['aberto', 'orcamento', 'vendeu', 'nao_comprou'] as const;
+export const CONTACT_STATUS = ['aberto', 'vendeu', 'nao_comprou'] as const;
 export type ContactStatus = (typeof CONTACT_STATUS)[number];
+
+/** A stage of a client's own sales funnel; a contact sits in at most one, independent of its sale status. */
+export const funnelStages = sqliteTable(
+  'funnel_stages',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    clientId: integer('client_id')
+      .notNull()
+      .references(() => clients.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    position: integer('position').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('funnel_stages_client_pos_idx').on(t.clientId, t.position)],
+);
 
 export const contacts = sqliteTable(
   'contacts',
@@ -101,6 +115,8 @@ export const contacts = sqliteTable(
     status: text('status', { enum: CONTACT_STATUS }).notNull().default('aberto'),
     statusAt: integer('status_at').notNull(),
     exportadaEm: integer('exportada_em'),
+    // Null = not categorised. Deleting a stage releases its contacts back to null.
+    stageId: integer('stage_id').references(() => funnelStages.id, { onDelete: 'set null' }),
   },
   (t) => [
     uniqueIndex('contacts_client_phone_idx').on(t.clientId, t.phone),
@@ -222,5 +238,6 @@ export const knownChats = sqliteTable(
 export type Client = typeof clients.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Click = typeof clicks.$inferSelect;
+export type FunnelStage = typeof funnelStages.$inferSelect;
 export type Contact = typeof contacts.$inferSelect;
 export type Sale = typeof sales.$inferSelect;

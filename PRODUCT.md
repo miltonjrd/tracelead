@@ -33,7 +33,7 @@ Nome: TraceLead (renomeado de tracker no commit c7ef87b). Ícone em `public/icon
 Sem depoimentos, clientes de referência ou métricas públicas; não inventar.
 
 ## Product Principles
-- A loja só decide uma coisa por contato: vendeu ou não. "Orçamento" é uma espera, não uma terceira decisão: separa quem já recebeu proposta e ainda precisa terminar em vendeu ou não comprou.
+- A loja só decide uma coisa por contato: vendeu ou não. "Orçamento" não é uma decisão: é uma etapa padrão do funil de cada loja (`/painel/funil`), só para organizar quem já recebeu proposta. O funil não muda o que vai ao Google Ads.
 - Dados exportados ao Google Ads têm de ser corretos e auditáveis antes de serem rápidos.
 - Privacidade por padrão: guardar o mínimo, nunca o conteúdo das conversas.
 - O estado do sistema (conexão, backup, sincronização) deve ser legível de relance pelo gestor.

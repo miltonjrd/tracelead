@@ -9,7 +9,6 @@ import {
   isOrigem,
   listPanel,
   parsePanelQuery,
-  markBudget,
   markNotBought,
   markSold,
   PanelError,
@@ -20,6 +19,18 @@ import QRCode from 'qrcode';
 import { SessionLimitError, type WhatsAppSessions } from '../services/whatsappSessions.js';
 import { page } from '../views/layout.js';
 import { avisoRegion, contactCard, contactLists, ledgerRow, panelNav, panelPage } from '../views/panel.js';
+import {
+  createStage,
+  createTemplateStages,
+  deleteStage,
+  listStages,
+  listStagesWithCounts,
+  moveStage,
+  parseStageId,
+  renameStage,
+  setContactStage,
+} from '../services/funnel.js';
+import { funnelPage } from '../views/funnel.js';
 import { connectionHealth } from '../services/connectionHealth.js';
 import { whatsappPage, whatsappStatus } from '../views/whatsapp.js';
 import { isHtmx, requireRole } from './auth.js';
@@ -55,6 +66,66 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
     const now = Date.now();
     const data = await listPanel(db, client, now, listQuery(req));
     return reply.type('text/html').send(page({ title: 'Contatos', user: req.user, nav: panelNav('contatos'), body: panelPage(data, client, now, sessions.status(client.id), await hasAnyContact(db, client.id), await connectionHealth(db, client, sessions.status(client.id), sessions.lastEventAt(client.id))) }));
+  });
+
+  // Funnel management: plain form posts that redirect back, so it works without JS.
+  async function renderFunnel(
+    req: FastifyRequest,
+    reply: FastifyReply,
+    opts: { error?: { id: number; message: string }; formError?: string; ok?: string; draft?: string; code?: number } = {},
+  ) {
+    const client = await currentClient(req);
+    const stages = await listStagesWithCounts(db, client.id);
+    return reply
+      .code(opts.code ?? 200)
+      .type('text/html')
+      .send(page({ title: 'Funil', user: req.user, nav: panelNav('funil'), body: funnelPage(stages, opts) }));
+  }
+
+  app.get('/painel/funil', async (req, reply) => renderFunnel(req, reply));
+
+  type StageReq = FastifyRequest<{ Params: { id: string }; Body: Record<string, string | undefined> }>;
+  function stageAction(
+    path: string,
+    run: (client: Client, stageId: number, req: StageReq) => Promise<string | void>,
+  ) {
+    app.post(path, async (req: StageReq, reply: FastifyReply) => {
+      const client = await currentClient(req);
+      const stageId = Number(req.params.id);
+      try {
+        const ok = await run(client, stageId, req);
+        return renderFunnel(req, reply, { ok: ok || undefined });
+      } catch (err) {
+        if (!(err instanceof PanelError)) throw err;
+        return renderFunnel(req, reply, { error: { id: stageId, message: err.message }, code: 400 });
+      }
+    });
+  }
+  stageAction('/painel/funil/:id/renomear', async (client, id, req) => {
+    await renameStage(db, client.id, id, req.body?.nome);
+    return 'Etapa renomeada.';
+  });
+  stageAction('/painel/funil/:id/subir', (client, id) => moveStage(db, client.id, id, 'up'));
+  stageAction('/painel/funil/:id/descer', (client, id) => moveStage(db, client.id, id, 'down'));
+  stageAction('/painel/funil/:id/excluir', async (client, id) => {
+    const released = await deleteStage(db, client.id, id);
+    return released ? `Etapa excluída. ${released} ${released === 1 ? 'contato ficou' : 'contatos ficaram'} sem etapa.` : 'Etapa excluída.';
+  });
+
+  app.post('/painel/funil', async (req: FastifyRequest<{ Body: Record<string, string | undefined> }>, reply) => {
+    const client = await currentClient(req);
+    try {
+      const stage = await createStage(db, client.id, req.body?.nome);
+      return renderFunnel(req, reply, { ok: `Etapa “${stage.name}” criada.` });
+    } catch (err) {
+      if (!(err instanceof PanelError)) throw err;
+      return renderFunnel(req, reply, { formError: err.message, draft: req.body?.nome, code: 400 });
+    }
+  });
+  app.post('/painel/funil/modelo', async (req, reply) => {
+    const client = await currentClient(req);
+    await createTemplateStages(db, client.id);
+    return renderFunnel(req, reply, { ok: 'Modelo criado. Renomeie, reordene ou exclua as etapas como quiser.' });
   });
 
   /** Current connection state of the store's own client; the QR comes out as inline SVG. */
@@ -133,10 +204,11 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
       }
       const row = await getPanelRow(db, client.id, contactId);
       if (!row) return reply.code(404).send('Contato não encontrado');
+      const stages = await listStages(db, client.id);
       const body =
-        row.contact.status === 'aberto' || row.contact.status === 'orcamento'
-          ? contactCard(row, client, Date.now(), error).value
-          : ledgerRow(row, client, error).value;
+        row.contact.status === 'aberto'
+          ? contactCard(row, client, Date.now(), error, false, stages).value
+          : ledgerRow(row, client, error, false, stages).value;
       // A card swap that succeeded (origin change) still reports, so focus and screen readers are not left behind.
       const aviso =
         !error && message
@@ -152,10 +224,6 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
     await markSold(db, client.id, id, cents, req.user!.id);
     return `Venda de ${formatMoney(cents, client.currency)} registrada.`;
   }, { moves: true, undoable: true });
-  action('/painel/contatos/:id/orcamento', async (client, id) => {
-    await markBudget(db, client.id, id);
-    return 'Contato movido para "Orçamentos".';
-  }, { moves: true, undoable: true });
   action('/painel/contatos/:id/nao-comprou', async (client, id) => {
     await markNotBought(db, client.id, id);
     return 'Contato marcado como não comprou.';
@@ -164,6 +232,9 @@ export async function panelRoutes(app: FastifyInstance, opts: { db: Db; sessions
     await reopen(db, client.id, id);
     return 'Contato voltou para "Contatos".';
   }, { moves: true });
+  action('/painel/contatos/:id/etapa', async (client, id, req) => {
+    await setContactStage(db, client.id, id, parseStageId(req.body?.etapa));
+  });
   action('/painel/contatos/:id/origem', async (client, id, req) => {
     const origem = req.body?.origem;
     if (!isOrigem(origem) || origem === 'anuncio') throw new PanelError('Origem inválida');

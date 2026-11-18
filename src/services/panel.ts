@@ -1,6 +1,6 @@
-import { and, count, desc, eq, gte, inArray, like, lt, or, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, gte, inArray, isNull, like, lt, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { contacts, ORIGENS, sales, type Client, type Contact, type Origem, type Sale } from '../db/schema.js';
+import { contacts, funnelStages, ORIGENS, sales, type Client, type Contact, type Origem, type Sale } from '../db/schema.js';
 import { addDays, DAY_MS, fromLocal, isIsoDate, localDate } from '../lib/time.js';
 
 export class PanelError extends Error {}
@@ -33,6 +33,8 @@ export interface PanelQuery {
   page?: number;
   size?: number;
   origem?: Origem | '';
+  /** Funnel stage id as text, "sem" for contacts without a stage, "" for all. */
+  etapa?: string;
   /** Local "YYYY-MM-DD" bounds on the first message; empty means "the current list". */
   de?: string;
   ate?: string;
@@ -51,6 +53,7 @@ export function parsePanelQuery(raw: Record<string, unknown> = {}): Required<Pan
     page: Number.isInteger(n) && n > 0 ? n : 1,
     size: (PAGE_SIZES as readonly number[]).includes(sz) ? sz : PAGE_SIZE,
     origem: isOrigem(raw.origem) ? raw.origem : '',
+    etapa: raw.etapa === 'sem' ? 'sem' : typeof raw.etapa === 'string' && /^[1-9]\d{0,9}$/.test(raw.etapa) ? raw.etapa : '',
     de,
     ate,
   };
@@ -63,7 +66,10 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
   const search = q
     ? or(like(contacts.name, `%${q}%`), digits ? like(contacts.phone, `%${digits}%`) : undefined)
     : undefined;
-  const origem = query.origem ? eq(contacts.origem, query.origem) : undefined;
+  const origemFilter = query.origem ? eq(contacts.origem, query.origem) : undefined;
+  const etapaFilter = query.etapa === 'sem' ? isNull(contacts.stageId) : query.etapa ? eq(contacts.stageId, Number(query.etapa)) : undefined;
+  // Both narrow every list the same way, so a marked contact stays findable.
+  const origem = and(origemFilter, etapaFilter);
   // A period is an explicit request for old days: it replaces the 7-day window and today's ledger,
   // and it cuts by the date of contact (the first message), the same date the lists are ordered by.
   const de = query.de || '';
@@ -75,7 +81,8 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
   const open = and(
     eq(contacts.clientId, client.id),
     eq(contacts.status, 'aberto'),
-    periodo ?? gte(contacts.lastMessageAt, now - OPEN_WINDOW_MS),
+    // A contact marked open again (or migrated from the old "orçamento") counts from that mark too.
+    periodo ?? gte(sql`max(${contacts.lastMessageAt}, ${contacts.statusAt})`, now - OPEN_WINDOW_MS),
     search,
     origem,
   );
@@ -90,21 +97,6 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
     .orderBy(desc(contacts.firstMessageAt))
     .limit(size)
     .offset((page - 1) * size);
-  // A quote keeps its own list: still to be decided, but out of the way of the untouched contacts.
-  // The window restarts when the quote is marked, so a slow answer does not drop it off the list.
-  const orcamentos = await db
-    .select()
-    .from(contacts)
-    .where(
-      and(
-        eq(contacts.clientId, client.id),
-        eq(contacts.status, 'orcamento'),
-        periodo ?? gte(sql`max(${contacts.lastMessageAt}, ${contacts.statusAt})`, now - OPEN_WINDOW_MS),
-        search,
-        origem,
-      ),
-    )
-    .orderBy(desc(contacts.firstMessageAt));
   const resolvidos = await db
     .select()
     .from(contacts)
@@ -119,9 +111,14 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
       ),
     )
     .orderBy(periodo ? desc(contacts.firstMessageAt) : desc(contacts.statusAt));
+  const stages = await db
+    .select()
+    .from(funnelStages)
+    .where(eq(funnelStages.clientId, client.id))
+    .orderBy(asc(funnelStages.position), asc(funnelStages.id));
   return {
+    stages,
     pendentes: await withLastSales(db, pendentes),
-    orcamentos: await withLastSales(db, orcamentos),
     resolvidos: await withLastSales(db, resolvidos),
     total,
     page,
@@ -129,6 +126,7 @@ export async function listPanel(db: Db, client: Client, now = Date.now(), query:
     size,
     q,
     origem: query.origem ?? '',
+    etapa: query.etapa ?? '',
     de,
     ate,
   };
@@ -173,20 +171,12 @@ export async function markSold(
   });
 }
 
-/** Sets the contact aside as a pending quote; it still has to end in "vendeu" or "não comprou". */
-export async function markBudget(db: Db, clientId: number, contactId: number, now = Date.now()): Promise<void> {
-  const contact = await requireContact(db, clientId, contactId);
-  if (contact.status === 'vendeu') throw new PanelError('Esse contato já foi marcado como vendeu. Desfaça a venda primeiro.');
-  if (contact.status === 'orcamento') return;
-  await db.update(contacts).set({ status: 'orcamento', statusAt: now }).where(eq(contacts.id, contactId));
-}
-
 export async function markNotBought(db: Db, clientId: number, contactId: number, now = Date.now()): Promise<void> {
   await requireContact(db, clientId, contactId);
   await db.update(contacts).set({ status: 'nao_comprou', statusAt: now }).where(eq(contacts.id, contactId));
 }
 
-/** Undoes "vendeu" / "não comprou" / "orçamento". A sale already sent to Google Ads can only be fixed by the admin. */
+/** Undoes "vendeu" / "não comprou". A sale already sent to Google Ads can only be fixed by the admin. */
 export async function reopen(db: Db, clientId: number, contactId: number, now = Date.now()): Promise<void> {
   const contact = await requireContact(db, clientId, contactId);
   if (contact.status === 'aberto') return;

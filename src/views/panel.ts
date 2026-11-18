@@ -1,4 +1,4 @@
-import type { Client } from '../db/schema.js';
+import type { Client, FunnelStage } from '../db/schema.js';
 import { formatMoney, formatPhone } from '../lib/format.js';
 import { html, SafeHtml } from '../lib/html.js';
 import { addDays, localDate, localTime, formatDateBr } from '../lib/time.js';
@@ -37,23 +37,23 @@ function expiry(lastMessageAt: number, now: number): SafeHtml | '' {
 }
 
 /** Sidebar of the store panel. */
-export function panelNav(active: 'contatos' | 'whatsapp'): SafeHtml {
+export function panelNav(active: 'contatos' | 'funil' | 'whatsapp'): SafeHtml {
   const link = (key: typeof active, href: string, label: string) =>
     html`<a class="side-link${key === active ? ' active' : ''}" href="${href}"${key === active ? html` aria-current="page"` : ''}>${label}</a>`;
   return html`<nav class="side-nav" aria-label="Painel">
     ${link('contatos', '/painel', 'Contatos')}
+    ${link('funil', '/painel/funil', 'Funil')}
     ${link('whatsapp', '/painel/whatsapp', 'WhatsApp')}
   </nav>`;
 }
 
-export function contactCard(row: PanelRow, client: Client, now: number, error?: string, moved = false): SafeHtml {
+export function contactCard(row: PanelRow, client: Client, now: number, error?: string, moved = false, stages: FunnelStage[] = []): SafeHtml {
   const { contact: c, lastSale } = row;
   const base = `/painel/contatos/${c.id}`;
   const title = c.name ?? formatPhone(c.phone);
 
   let actions: SafeHtml;
-  // "orcamento" is still undecided: same card, minus the button that put it there.
-  if (c.status === 'aberto' || c.status === 'orcamento') {
+  if (c.status === 'aberto') {
     actions = html`<div class="actions">
       <button class="btn btn-primary" type="button" data-modal-open="venda-modal-${c.id}">Vendeu</button>
       <dialog class="modal" id="venda-modal-${c.id}" aria-labelledby="venda-title-${c.id}"${error ? ' data-autoopen' : ''}>
@@ -68,17 +68,9 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
           </div>
         </form>
       </dialog>
-      ${c.status === 'aberto'
-        ? html`<form ${hx(`${base}/orcamento`, c.id)}>
-            <button class="btn btn-secondary" type="submit">Orçamento</button>
-          </form>`
-        : ''}
       <form ${hx(`${base}/nao-comprou`, c.id)}>
         <button class="btn btn-secondary" type="submit">Não comprou</button>
       </form>
-      ${c.status === 'orcamento'
-        ? html`<form ${hx(`${base}/reabrir`, c.id)} class="inline"><button class="btn-link" type="submit">Tirar do orçamento</button></form>`
-        : ''}
     </div>`;
   } else {
     const label =
@@ -111,29 +103,37 @@ export function contactCard(row: PanelRow, client: Client, now: number, error?: 
       </dialog>`;
 
   const arrived = `${when(c.firstMessageAt, client, now)}${c.lastMessageAt - c.firstMessageAt > 60_000 ? ` · última: ${when(c.lastMessageAt, client, now).toLowerCase()}` : ''}`;
-  // A quote restarts the 7-day window, so it is the mark — not the last message — that dates it.
-  const quote =
-    c.status === 'orcamento'
-      ? html` · <span class="badge badge-orcamento">Orçamento ${when(c.statusAt, client, now).toLowerCase()}</span>`
-      : '';
-  const alive = c.status === 'orcamento' ? Math.max(c.lastMessageAt, c.statusAt) : c.lastMessageAt;
+  const alive = Math.max(c.lastMessageAt, c.statusAt);
+  const etapa = stages.length
+    ? html`<td data-label="Etapa">
+      <form ${hx(`${base}/etapa`, c.id)} hx-trigger="change" class="stage-pick">
+        <label class="sr-only" for="etapa-${c.id}">Etapa do funil de ${title}</label>
+        <select id="etapa-${c.id}" name="etapa">
+          <option value="">Sem etapa</option>
+          ${stages.map((st) => html`<option value="${st.id}"${st.id === c.stageId ? ' selected' : ''}>${st.name}</option>`)}
+        </select>
+        <noscript><button class="btn btn-secondary" type="submit">Salvar</button></noscript>
+      </form>
+    </td>`
+    : '';
   return html`<tr class="contact-row${moved ? ' moved' : ''}" id="contato-${c.id}">
     <td data-label="Contato">
       <strong>${title}</strong>
       ${c.name ? html`<a class="muted phone" href="https://wa.me/${c.phone.slice(1)}">${formatPhone(c.phone)}</a>` : ''}
     </td>
     <td data-label="Origem"><span class="badge badge-${c.origem}">${ORIGEM_LABEL[c.origem]}</span>${origem}</td>
-    <td data-label="Data de contato" class="meta">${arrived}${quote}${expiry(alive, now)}</td>
+    ${etapa}
+    <td data-label="Data de contato" class="meta">${arrived}${expiry(alive, now)}</td>
     <td data-label="Ação">
       ${actions}
     </td>
   </tr>`;
 }
 
-export type PanelData = { pendentes: PanelRow[]; orcamentos: PanelRow[]; resolvidos: PanelRow[]; total: number; page: number; pages: number; size: number; q: string; origem: Origem | ''; de: string; ate: string };
+export type PanelData = { pendentes: PanelRow[]; resolvidos: PanelRow[]; total: number; page: number; pages: number; size: number; q: string; origem: Origem | ''; etapa: string; stages: FunnelStage[]; de: string; ate: string };
 
 /** A marked contact is one ruled line of the day's ledger: who, what, how much, undo. */
-export function ledgerRow(row: PanelRow, client: Client, error?: string, moved = false): SafeHtml {
+export function ledgerRow(row: PanelRow, client: Client, error?: string, moved = false, stages: FunnelStage[] = []): SafeHtml {
   const { contact: c, lastSale } = row;
   const base = `/painel/contatos/${c.id}`;
   const title = c.name ?? formatPhone(c.phone);
@@ -141,8 +141,10 @@ export function ledgerRow(row: PanelRow, client: Client, error?: string, moved =
     c.status === 'vendeu' && lastSale
       ? html`<span class="ledger-val status-ok num">Vendeu ${formatMoney(lastSale.valorCentavos, client.currency)}</span>`
       : html`<span class="ledger-val status-no">Não comprou</span>`;
-  return html`<li class="ledger-row${moved ? ' moved' : ''}" id="contato-${c.id}">
+  const stage = c.stageId ? stages.find((st) => st.id === c.stageId) : undefined;
+  return html`<li class="ledger-row${stage ? ' has-stage' : ''}${moved ? ' moved' : ''}" id="contato-${c.id}">
     <strong class="ledger-who">${title}</strong>
+    ${stage ? html`<span class="badge badge-etapa">${stage.name}</span>` : ''}
     ${result}
     <form ${hx(`${base}/reabrir`, c.id)} class="inline"><button class="btn-link" type="submit">Desfazer</button></form>
     ${error ? html`<p class="flash flash-erro ledger-error" role="alert">${error}</p>` : ''}
@@ -168,6 +170,7 @@ function listHref(data: PanelData, page: number): string {
   const params = new URLSearchParams();
   if (data.q) params.set('q', data.q);
   if (data.origem) params.set('origem', data.origem);
+  if (data.etapa) params.set('etapa', data.etapa);
   if (data.de) params.set('de', data.de);
   if (data.ate) params.set('ate', data.ate);
   if (page > 1) params.set('pagina', String(page));
@@ -200,6 +203,7 @@ function pagination(data: PanelData): SafeHtml | '' {
     <form class="pager-size" method="get" action="/painel">
       ${data.q ? html`<input type="hidden" name="q" value="${data.q}">` : ''}
       ${data.origem ? html`<input type="hidden" name="origem" value="${data.origem}">` : ''}
+      ${data.etapa ? html`<input type="hidden" name="etapa" value="${data.etapa}">` : ''}
       ${data.de ? html`<input type="hidden" name="de" value="${data.de}">` : ''}
       ${data.ate ? html`<input type="hidden" name="ate" value="${data.ate}">` : ''}
       <label for="por">Por página</label>
@@ -226,18 +230,14 @@ export function contactLists(
   now: number,
   opts: { movedId?: number; whatsappOff?: boolean; firstRun?: boolean } = {},
 ): SafeHtml {
-  const card = (r: PanelRow) => contactCard(r, client, now, undefined, r.contact.id === opts.movedId);
-  const criteria = html`${data.q ? html` para “${data.q}”` : ''}${data.origem ? html` com origem ${ORIGEM_LABEL[data.origem]}` : ''}${periodLabel(data) ? html` ${periodLabel(data)}` : ''}`;
+  const card = (r: PanelRow) => contactCard(r, client, now, undefined, r.contact.id === opts.movedId, data.stages);
+  const hasStages = data.stages.length > 0;
+  const etapaNome = data.etapa === 'sem' ? 'Sem etapa' : data.stages.find((st) => String(st.id) === data.etapa)?.name;
+  const criteria = html`${data.q ? html` para “${data.q}”` : ''}${data.origem ? html` com origem ${ORIGEM_LABEL[data.origem]}` : ''}${etapaNome ? html` na etapa “${etapaNome}”` : ''}${periodLabel(data) ? html` ${periodLabel(data)}` : ''}`;
   const periodo = !!(data.de || data.ate);
   const marcados = periodo ? 'Marcados' : 'Marcados hoje';
-  const elsewhere = data.orcamentos.length
-    ? data.resolvidos.length
-      ? `“Orçamentos” e “${marcados}”`
-      : '“Orçamentos”'
-    : data.resolvidos.length
-      ? `“${marcados}”`
-      : '';
-  const empty = data.q || data.origem || periodo
+  const elsewhere = data.resolvidos.length ? `“${marcados}”` : '';
+  const empty = data.q || data.origem || data.etapa || periodo
     ? // The same search runs over the other lists; say where the match is instead of "nothing found".
       elsewhere
       ? html`<p class="empty">Nenhum contato em aberto${criteria}. O resultado está em ${elsewhere}.</p>`
@@ -251,20 +251,12 @@ export function contactLists(
     <h2 class="section-title">Contatos <span class="count">${data.total}</span></h2>
     ${periodo ? html`<p class="muted small">Contatos ${periodLabel(data)}, pela data do primeiro contato. <a class="btn-link" href="/painel">Voltar para hoje</a></p>` : ''}
     ${data.pendentes.length ? html`<table class="contacts">
-      <thead><tr><th scope="col">Contato</th><th scope="col">Origem</th><th scope="col">Data de contato</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead>
+      <thead><tr><th scope="col">Contato</th><th scope="col">Origem</th>${hasStages ? html`<th scope="col">Etapa</th>` : ''}<th scope="col">Data de contato</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead>
       <tbody>${data.pendentes.map(card)}</tbody>
     </table>${pagination(data)}` : empty}
-    ${data.orcamentos.length
-      ? html`<h2 class="section-title">Orçamentos <span class="count">${data.orcamentos.length}</span></h2>
-          <p class="muted small">Esperando resposta. Ainda precisam de Vendeu ou Não comprou.</p>
-          <table class="contacts">
-            <thead><tr><th scope="col">Contato</th><th scope="col">Origem</th><th scope="col">Data de contato</th><th scope="col"><span class="sr-only">Ação</span></th></tr></thead>
-            <tbody>${data.orcamentos.map(card)}</tbody>
-          </table>`
-      : ''}
     ${data.resolvidos.length
       ? html`<h2 class="section-title">${marcados} <span class="count">${data.resolvidos.length}</span></h2>
-          <ol class="ledger">${data.resolvidos.map((r) => ledgerRow(r, client, undefined, r.contact.id === opts.movedId))}${dayTotal(data.resolvidos, client, periodo)}</ol>`
+          <ol class="ledger">${data.resolvidos.map((r) => ledgerRow(r, client, undefined, r.contact.id === opts.movedId, data.stages))}${dayTotal(data.resolvidos, client, periodo)}</ol>`
       : ''}
   </div>`;
 }
@@ -309,6 +301,7 @@ function periodShortcuts(data: PanelData, today: string): SafeHtml {
     const params = new URLSearchParams();
     if (data.q) params.set('q', data.q);
     if (data.origem) params.set('origem', data.origem);
+    if (data.etapa) params.set('etapa', data.etapa);
     if (data.size !== PAGE_SIZE) params.set('por', String(data.size));
     if (o.de) params.set('de', o.de);
     if (o.ate) params.set('ate', o.ate);
@@ -346,9 +339,17 @@ export function panelPage(
         <option value="">Todas as origens</option>
         ${ORIGENS.map((o) => html`<option value="${o}"${o === data.origem ? ' selected' : ''}>${ORIGEM_LABEL[o]}</option>`)}
       </select>
+      ${data.stages.length
+        ? html`<label class="sr-only" for="filtro-etapa">Filtrar por etapa</label>
+      <select id="filtro-etapa" name="etapa" data-autosubmit>
+        <option value="">Todas as etapas</option>
+        <option value="sem"${data.etapa === 'sem' ? ' selected' : ''}>Sem etapa</option>
+        ${data.stages.map((st) => html`<option value="${st.id}"${String(st.id) === data.etapa ? ' selected' : ''}>${st.name}</option>`)}
+      </select>`
+        : ''}
       <button class="btn btn-secondary btn-icon" type="submit" aria-label="Pesquisar" title="Pesquisar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg></button>
       ${data.size !== PAGE_SIZE ? html`<input type="hidden" name="por" value="${data.size}">` : ''}
-      ${data.q || data.origem || data.de || data.ate ? html`<a class="btn-link" href="/painel">Limpar</a>` : ''}
+      ${data.q || data.origem || data.etapa || data.de || data.ate ? html`<a class="btn-link" href="/painel">Limpar</a>` : ''}
       <div class="search-period">
         <label for="de">De</label>
         <input id="de" type="date" name="de" value="${data.de}" max="${today}">

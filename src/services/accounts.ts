@@ -3,6 +3,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { clients, sessions, users, type Client } from '../db/schema.js';
 import { hashPassword, hashToken, verifyPassword } from './auth.js';
+import { ensureDefaultStages } from './funnel.js';
 
 export interface ClientInput {
   name: string;
@@ -46,6 +47,7 @@ export async function createClient(db: Db, input: ClientInput, now = Date.now())
       createdAt: now,
     })
     .returning();
+  await ensureDefaultStages(db, client!.id, now);
   return client!;
 }
 

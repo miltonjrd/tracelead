@@ -123,8 +123,7 @@ export async function weeklyReport(db: Db, client: Client, start: string, now = 
     .where(
       and(
         eq(contacts.clientId, client.id),
-        // A quote still waits for a final mark, so it counts as pending too.
-        inArray(contacts.status, ['aberto', 'orcamento']),
+        eq(contacts.status, 'aberto'),
         lt(contacts.lastMessageAt, startOfToday),
         gte(contacts.lastMessageAt, now - 7 * DAY_MS),
       ),

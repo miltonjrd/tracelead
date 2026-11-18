@@ -11,7 +11,6 @@ export const ORIGEM_LABEL: Record<Origem, string> = {
 
 export const STATUS_LABEL: Record<ContactStatus, string> = {
   aberto: 'Aberto',
-  orcamento: 'Orçamento',
   vendeu: 'Vendeu',
   nao_comprou: 'Não comprou',
 };

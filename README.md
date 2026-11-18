@@ -4,7 +4,7 @@ Liga **anúncio → conversa no WhatsApp → venda** e devolve leads e vendas ao
 
 - `t.js` no site do cliente guarda o `gclid`/UTMs e, no clique do botão de WhatsApp, acrescenta um ref curto à mensagem (`(ref. 4F7KX)`).
 - A conexão com o WhatsApp lê o ref e liga o telefone ao clique: por padrão a loja escaneia um QR code (Baileys); a Cloud API da Meta continua disponível como modo alternativo. O texto das conversas não é guardado.
-- O cliente marca "Vendeu" + valor ou "Não comprou" no painel (`/painel`, instalável como app no celular). "Orçamento" guarda numa lista separada quem já recebeu proposta e ainda vai decidir. O filtro "De / até" (ou os atalhos Ontem · 7 dias · 30 dias) mostra os contatos de dias anteriores, pela data do primeiro contato.
+- O cliente marca "Vendeu" + valor ou "Não comprou" no painel (`/painel`, instalável como app no celular). Cada loja monta seu funil em `/painel/funil` (já vem com a etapa "Orçamento") e escolhe a etapa de cada contato na lista; o funil é só organização e não altera o que vai ao Google Ads. O filtro "De / até" (ou os atalhos Ontem · 7 dias · 30 dias) mostra os contatos de dias anteriores, pela data do primeiro contato.
 - O admin (`/admin`) vê o relatório semanal, corrige vendas, gera os CSVs "Lead WhatsApp" e "Venda WhatsApp" e acompanha backup e sincronização de gasto.
 
 Stack: Node 22+ · Fastify · HTMX · SQLite (Drizzle ORM) · Caddy · Docker Compose.

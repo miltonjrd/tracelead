@@ -57,6 +57,20 @@
       "when": 1794918953566,
       "tag": "0007_known_chats",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1795013296163,
+      "tag": "0008_funnel_stages",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1795013735515,
+      "tag": "0009_orcamento_to_funnel_stage",
+      "breakpoints": true
     }
   ]
 }

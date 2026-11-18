@@ -1,3 +1,4 @@
+import { listStages } from '../src/services/funnel.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { eq } from 'drizzle-orm';
@@ -175,41 +176,34 @@ test('contato volta para a lista quando escreve num dia seguinte', async () => {
   assert.equal(c?.name, 'Maria');
 });
 
-test('orçamento separa o contato sem fechar a venda', async () => {
+test('orçamento agora é uma etapa padrão do funil, sem botão próprio', async () => {
   const ctx = await setup();
   const contact = await clickAndMessage(ctx);
   const cookie = await login(ctx.app, 'loja', 'loja-pass-123');
   const hx = { 'hx-request': 'true' };
-  const get = () => ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
 
-  const marcado = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/orcamento`, ...form(cookie, {}, hx) });
-  assert.match(marcado.body, /Contatos <span class="count">0<\/span>/);
-  assert.match(marcado.body, /Orçamentos <span class="count">1<\/span>/);
-  assert.doesNotMatch(marcado.body, /Marcados hoje/, 'orçamento não é uma marcação do dia');
-  assert.match(marcado.body, /class="contact-row moved"/);
-  assert.equal((await ctx.db.query.contacts.findFirst())?.status, 'orcamento');
-
-  const lista = await get();
-  // Ainda decidível: Vendeu e Não comprou continuam no cartão; o botão Orçamento sai.
-  assert.match(lista.body, /badge-orcamento/);
-  assert.match(lista.body, /Vendeu<\/button>/);
-  assert.match(lista.body, /Não comprou<\/button>/);
+  const lista = await ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
   assert.doesNotMatch(lista.body, />Orçamento<\/button>/);
-  assert.match(lista.body, /Tirar do orçamento/);
+  assert.doesNotMatch(lista.body, /Tirar do orçamento/);
+  assert.doesNotMatch(lista.body, /Orçamentos <span class="count">/);
+  assert.match(lista.body, /<option value="\d+">Orçamento<\/option>/, 'todo cliente já tem a etapa Orçamento');
 
-  // Uma mensagem no dia seguinte não tira o contato dos orçamentos.
-  const tz = ctx.client.timezone;
-  await ctx.db.update(contacts).set({ statusAt: fromLocal('2026-10-29', tz, '10:00') }).where(eq(contacts.id, contact.id));
-  await handleInboundMessage(ctx.db, ctx.client, { from: LEAD_PHONE, name: null, timestamp: fromLocal('2026-10-30', tz, '09:00'), ref: null });
-  assert.equal((await ctx.db.query.contacts.findFirst())?.status, 'orcamento');
+  const gone = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/orcamento`, ...form(cookie, {}, hx) });
+  assert.equal(gone.statusCode, 404);
+
+  const [stage] = await listStages(ctx.db, ctx.client.id);
+  assert.equal(stage?.name, 'Orçamento');
+  await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/etapa`, ...form(cookie, { etapa: String(stage!.id) }, hx) });
+
+  // Em etapa Orçamento o contato continua decidível, e a mensagem de outro dia não mexe nele.
+  const em = await ctx.app.inject({ method: 'GET', url: `/painel?etapa=${stage!.id}`, headers: { cookie } });
+  assert.match(em.body, /Vendeu<\/button>/);
+  assert.match(em.body, /Não comprou<\/button>/);
 
   const vendeu = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/venda`, ...form(cookie, { valor: '150' }, hx) });
-  assert.doesNotMatch(vendeu.body, /Orçamentos <span class="count">/);
   assert.match(vendeu.body, /Marcados hoje <span class="count">1<\/span>/);
+  assert.match(vendeu.body, /badge-etapa">Orçamento</);
   assert.match(vendeu.body, /Total do dia · 1 venda/);
-
-  const jaVendido = await ctx.app.inject({ method: 'POST', url: `/painel/contatos/${contact.id}/orcamento`, ...form(cookie, {}, hx) });
-  assert.match(jaVendido.body, /Desfaça a venda primeiro/);
 });
 
 test('filtro de datas mostra contatos de dias anteriores', async () => {
@@ -324,7 +318,7 @@ test('painel mostra primeira vez, aviso de expiração e total do dia', async ()
 
   const contact = await clickAndMessage(ctx);
   const old = Date.now() - 6 * 24 * 60 * 60 * 1000 - 3_600_000;
-  await ctx.db.update(contacts).set({ firstMessageAt: old, lastMessageAt: old }).where(eq(contacts.id, contact.id));
+  await ctx.db.update(contacts).set({ firstMessageAt: old, lastMessageAt: old, statusAt: old }).where(eq(contacts.id, contact.id));
   const aging = await ctx.app.inject({ method: 'GET', url: '/painel', headers: { cookie } });
   assert.match(aging.body, /Sai da lista em 1 dias|Sai da lista hoje/);
 
