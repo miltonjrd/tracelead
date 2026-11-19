@@ -6,6 +6,8 @@ import { openDb } from './db/client.js';
 import { clients } from './db/schema.js';
 import { eq } from 'drizzle-orm';
 import { resolveGoogleAds, saveGoogleAdsSettings } from './services/googleAdsSettings.js';
+import { fromLocal } from './lib/time.js';
+import { purgeStaleContacts } from './services/purgeStale.js';
 import { createClient, createUser, generatePassword, setPassword, updateClient } from './services/accounts.js';
 
 const HELP = `Uso: npm run cli -- <comando> [opções]
@@ -16,6 +18,9 @@ const HELP = `Uso: npm run cli -- <comando> [opções]
   list-clients
   create-user    --username <u> --role admin|client [--client <id>] [--password <senha>]
   set-password   --username <u> [--password <senha>]
+  purge-old-contacts --client <id> --before AAAA-MM-DD [--apply]
+                 apaga contatos antigos sem trabalho (sem clique, venda, etapa do funil ou exportação) cuja
+                 última mensagem é anterior à data. Sem --apply só mostra quantos seriam apagados
   google-auth    [--id <cliente>] [--port 8085]   gera o refresh token do Google Ads. Com --id, usa o OAuth
                  client do cliente (ou o do .env) e salva o token nele; sem --id, imprime o GOOGLE_ADS_REFRESH_TOKEN
 
@@ -36,12 +41,14 @@ const { values: args } = parseArgs({
     client: { type: 'string' },
     password: { type: 'string' },
     port: { type: 'string' },
+    before: { type: 'string' },
+    apply: { type: 'boolean' },
   },
 });
 
 function need(name: keyof typeof args): string {
   const v = args[name];
-  if (!v) throw new Error(`Falta --${name}`);
+  if (typeof v !== 'string' || !v) throw new Error(`Falta --${name}`);
   return v;
 }
 
@@ -153,6 +160,18 @@ async function main(): Promise<void> {
         const password = args.password ?? generatePassword();
         await setPassword(db, need('username'), password, !args.password);
         console.log(`Senha alterada; sessões abertas foram encerradas.${args.password ? '' : `\nNova senha: ${password}`}`);
+        break;
+      }
+      case 'purge-old-contacts': {
+        const before = need('before');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(before)) throw new Error('--before deve ser AAAA-MM-DD');
+        const client = await db.query.clients.findFirst({ where: eq(clients.id, Number(need('client'))) });
+        if (!client) throw new Error(`Cliente ${args.client} não existe`);
+        // Midnight of that day in the client's timezone.
+        const cutoff = fromLocal(before, client.timezone);
+        const r = await purgeStaleContacts(db, client.id, cutoff, Boolean(args.apply));
+        console.log(`${client.name}: ${r.total} contatos; ${r.matched} se encaixam (última mensagem antes de ${before}, sem clique/venda/etapa/exportação).`);
+        console.log(args.apply ? `${r.deleted} apagados.` : 'Simulação: nada foi apagado. Rode de novo com --apply (faça backup do banco antes).');
         break;
       }
       default:
