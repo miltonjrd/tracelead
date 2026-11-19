@@ -10,10 +10,10 @@ export interface PurgeResult {
 
 /**
  * Removes contacts that look like old chats imported by WhatsApp and never worked by the client: last message
- * before `before`, no ad/site click, still "aberto", no sale, not exported to Google Ads and not in a funnel
+ * before `before` (any date when null), no ad/site click, still "aberto", no sale, not exported to Google Ads and not in a funnel
  * stage. Anything the client touched or that has a click stays. Without `apply` it only counts.
  */
-export async function purgeStaleContacts(db: Db, clientId: number, before: number, apply: boolean): Promise<PurgeResult> {
+export async function purgeStaleContacts(db: Db, clientId: number, before: number | null, apply: boolean): Promise<PurgeResult> {
   const [{ total }] = await db.select({ total: count() }).from(contacts).where(eq(contacts.clientId, clientId));
   const ids = (
     await db
@@ -22,7 +22,7 @@ export async function purgeStaleContacts(db: Db, clientId: number, before: numbe
       .where(
         and(
           eq(contacts.clientId, clientId),
-          lt(contacts.lastMessageAt, before),
+          before === null ? undefined : lt(contacts.lastMessageAt, before),
           eq(contacts.origem, 'desconhecida'),
           isNull(contacts.clickId),
           eq(contacts.status, 'aberto'),

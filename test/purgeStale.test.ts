@@ -38,4 +38,9 @@ test('apaga só contatos antigos sem trabalho do cliente', async () => {
   const left = (await db.select().from(contacts)).map((r) => r.phone);
   assert.ok(!left.includes('+5511900000001'));
   assert.equal(left.length, 6);
+
+  // Sem data de corte, pega também o recente.
+  const all = await purgeStaleContacts(db, c.id, null, true);
+  assert.equal(all.deleted, 1);
+  assert.ok(!(await db.select().from(contacts)).map((r) => r.phone).includes('+5511900000002'));
 });
